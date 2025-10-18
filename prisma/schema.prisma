@@ -14,9 +14,88 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// === USERS ===
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
+
+  // M:N с группами
+  groups UserGroup[]
+
+  @@index([email])
+}
+
+// === GROUPS ===
+model Group {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // системное имя, например "admins"
+  name      String   @unique // читаемое имя, например "Администраторы"
+  createdAt DateTime @default(now())
+
+  // M:N с пользователями
+  users UserGroup[]
+  // M:N с ролями
+  roles GroupRole[]
+}
+
+// === ROLES ===
+model Role {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // "manager", "teacher", "viewer"
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  // M:N с правами
+  permissions RolePermission[]
+  // M:N с группами
+  groups      GroupRole[]
+}
+
+// === PERMISSIONS ===
+model Permission {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // "user:create", "user:update", ...
+  desc      String?
+  createdAt DateTime @default(now())
+
+  roles RolePermission[]
+}
+
+// === LINK TABLES (явные, чтобы можно было добавить метаданные) ===
+model UserGroup {
+  userId   Int
+  groupId  Int
+  joinedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+  @@index([groupId])
+}
+
+model GroupRole {
+  groupId Int
+  roleId  Int
+  addedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role  Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  addedAt      DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
 }
