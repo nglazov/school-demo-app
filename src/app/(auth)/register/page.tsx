@@ -23,8 +23,8 @@ export default function RegisterPage() {
         <label>
           Email
           <input
-            name="email"
-            type="email"
+            name="username"
+            type="string"
             required
             placeholder="you@example.com"
             style={{ width: "100%", padding: 8 }}

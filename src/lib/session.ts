@@ -10,7 +10,7 @@ export async function getSession() {
   );
   try {
     const { payload } = await jwtVerify(token, secret);
-    return { userId: Number(payload.sub), email: payload.email as string };
+    return { userId: Number(payload.sub), email: payload.username as string };
   } catch {
     return null;
   }
