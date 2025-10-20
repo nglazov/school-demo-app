@@ -1,7 +1,6 @@
 // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
-  // output = "src/generated/prisma" // если нужен кастомный путь
 }
 
 datasource db {
@@ -14,28 +13,28 @@ datasource db {
 //////////////////////
 
 model User {
-  id            Int      @id @default(autoincrement())
-  username      String   @unique
-  password_hash String
-  created_at    DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
 
-  person_id Int?    @unique
-  person    Person? @relation(fields: [person_id], references: [id])
+  personId Int?    @unique
+  person   Person? @relation(fields: [personId], references: [id])
 
-  groups                 UserGroup[]
-  lesson_batches_created LessonBatch[] @relation("LessonBatchCreatedBy")
-  lesson_events_created  LessonEvent[] @relation("LessonEventCreatedBy")
+  groups               UserGroup[]
+  lessonBatchesCreated LessonBatch[] @relation("LessonBatchCreatedBy")
+  lessonEventsCreated  LessonEvent[] @relation("LessonEventCreatedBy")
 }
 
 model Person {
-  id          Int       @id @default(autoincrement())
-  first_name  String
-  last_name   String
-  middle_name String?
-  birth_date  DateTime?
-  phone       String?
-  email       String?
-  created_at  DateTime  @default(now())
+  id         Int       @id @default(autoincrement())
+  firstName  String
+  lastName   String
+  middleName String?
+  birthDate  DateTime?
+  phone      String?
+  email      String?
+  createdAt  DateTime  @default(now())
 
   user     User?
   student  Student?
@@ -51,61 +50,61 @@ model Permission {
   id          Int      @id @default(autoincrement())
   key         String   @unique
   description String?
-  created_at  DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   roles RolePermission[]
 }
 
 model Role {
-  id         Int      @id @default(autoincrement())
-  key        String   @unique
-  name       String
-  created_at DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  name      String
+  createdAt DateTime @default(now())
 
   permissions RolePermission[]
   groups      GroupRole[]
 }
 
 model RolePermission {
-  role_id       Int
-  permission_id Int
+  roleId       Int
+  permissionId Int
 
-  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
-  @@id([role_id, permission_id])
+  @@id([roleId, permissionId])
 }
 
 model AuthGroup {
-  id         Int      @id @default(autoincrement())
-  key        String   @unique
-  name       String
-  created_at DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  name      String
+  createdAt DateTime @default(now())
 
   roles GroupRole[]
   users UserGroup[]
 }
 
 model GroupRole {
-  group_id Int
-  role_id  Int
+  groupId Int
+  roleId  Int
 
-  group AuthGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
-  role  Role      @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  group AuthGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role  Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@id([group_id, role_id])
+  @@id([groupId, roleId])
 }
 
 model UserGroup {
-  user_id   Int
-  group_id  Int
-  joined_at DateTime @default(now())
+  userId   Int
+  groupId  Int
+  joinedAt DateTime @default(now())
 
-  user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  group AuthGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group AuthGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  @@id([user_id, group_id])
-  @@index([group_id])
+  @@id([userId, groupId])
+  @@index([groupId])
 }
 
 //////////////////////
@@ -124,50 +123,49 @@ enum FamilyMemberRole {
 }
 
 model Student {
-  id          Int     @id @default(autoincrement())
-  person_id   Int     @unique
-  external_id String?
+  id         Int     @id @default(autoincrement())
+  personId   Int     @unique
+  externalId String?
 
-  person Person @relation(fields: [person_id], references: [id])
+  person Person @relation(fields: [personId], references: [id])
 
-  families          FamilyMember[]
-  group_memberships GroupMembership[]
+  families         FamilyMember[]
+  groupMemberships GroupMembership[]
 }
 
 model Guardian {
-  id        Int          @id @default(autoincrement())
-  person_id Int          @unique
-  type      GuardianType @default(PARENT)
+  id       Int          @id @default(autoincrement())
+  personId Int          @unique
+  type     GuardianType @default(PARENT)
 
-  person   Person         @relation(fields: [person_id], references: [id])
+  person   Person         @relation(fields: [personId], references: [id])
   families FamilyMember[]
 }
 
 model Family {
-  id         Int      @id @default(autoincrement())
-  key        String   @unique
-  name       String?
-  created_at DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  name      String?
+  createdAt DateTime @default(now())
 
   members FamilyMember[]
 }
 
 model FamilyMember {
-  id          Int              @id @default(autoincrement())
-  family_id   Int
-  role        FamilyMemberRole
-  student_id  Int?
-  guardian_id Int?
-  joined_at   DateTime         @default(now())
+  id         Int              @id @default(autoincrement())
+  familyId   Int
+  role       FamilyMemberRole
+  studentId  Int?
+  guardianId Int?
+  joinedAt   DateTime         @default(now())
 
-  family   Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  student  Student?  @relation(fields: [student_id], references: [id], onDelete: Cascade)
-  guardian Guardian? @relation(fields: [guardian_id], references: [id], onDelete: Cascade)
-  // TODO: CHECK ( (student_id IS NOT NULL) <> (guardian_id IS NOT NULL) )
+  family   Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  student  Student?  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian Guardian? @relation(fields: [guardianId], references: [id], onDelete: Cascade)
 
-  @@index([family_id])
-  @@index([student_id])
-  @@index([guardian_id])
+  @@index([familyId])
+  @@index([studentId])
+  @@index([guardianId])
 }
 
 //////////////////////
@@ -175,71 +173,71 @@ model FamilyMember {
 //////////////////////
 
 model AcademicYear {
-  id         Int      @id @default(autoincrement())
-  code       String   @unique
-  starts_on  DateTime
-  ends_on    DateTime
-  created_at DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  startsOn  DateTime
+  endsOn    DateTime
+  createdAt DateTime @default(now())
 
   groups EduGroup[]
 }
 
 model EduGroup {
-  id               Int      @id @default(autoincrement())
-  key              String   @unique
-  name             String
-  grade_level      Int?
-  academic_year_id Int
-  track            String?
-  created_at       DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  key            String   @unique
+  name           String
+  gradeLevel     Int?
+  academicYearId Int
+  track          String?
+  createdAt      DateTime @default(now())
 
-  academic_year AcademicYear      @relation(fields: [academic_year_id], references: [id])
-  memberships   GroupMembership[]
-  Lesson        Lesson[]
+  academicYear AcademicYear      @relation(fields: [academicYearId], references: [id])
+  memberships  GroupMembership[]
+  lessons      Lesson[]
 
-  @@index([academic_year_id])
+  @@index([academicYearId])
 }
 
 model GroupMembership {
-  id         Int       @id @default(autoincrement())
-  student_id Int
-  group_id   Int
-  since      DateTime  @default(now())
-  until      DateTime?
+  id        Int       @id @default(autoincrement())
+  studentId Int
+  groupId   Int
+  since     DateTime  @default(now())
+  until     DateTime?
 
-  student Student  @relation(fields: [student_id], references: [id], onDelete: Cascade)
-  group   EduGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  student Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group   EduGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  @@unique([student_id, group_id, since])
-  @@index([group_id])
+  @@unique([studentId, groupId, since])
+  @@index([groupId])
 }
 
 //////////////////////
-// BUILDING / ROOM with CAPABILITIES
+// BUILDING / ROOM / CAPABILITIES
 //////////////////////
 
 model Building {
-  id         Int      @id @default(autoincrement())
-  name       String
-  address    String?
-  created_at DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
 
   rooms Room[]
 }
 
 model Room {
-  id          Int     @id @default(autoincrement())
-  building_id Int
-  name        String
-  capacity    Int?
-  notes       String?
+  id         Int     @id @default(autoincrement())
+  buildingId Int
+  name       String
+  capacity   Int?
+  notes      String?
 
-  building     Building         @relation(fields: [building_id], references: [id])
+  building     Building         @relation(fields: [buildingId], references: [id])
   capabilities RoomCapability[]
   lessons      Lesson[]
 
-  @@unique([building_id, name])
-  @@index([building_id])
+  @@unique([buildingId, name])
+  @@index([buildingId])
 }
 
 enum CapabilityValueType {
@@ -250,49 +248,48 @@ enum CapabilityValueType {
 }
 
 model Capability {
-  id         Int                 @id @default(autoincrement())
-  key        String              @unique
-  name       String
-  value_type CapabilityValueType
-  created_at DateTime            @default(now())
+  id        Int                 @id @default(autoincrement())
+  key       String              @unique
+  name      String
+  valueType CapabilityValueType
+  createdAt DateTime            @default(now())
 
-  options     CapabilityOption[]
-  room_values RoomCapability[]
-  subj_rules  SubjectCapabilityRule[]
+  options    CapabilityOption[]
+  roomValues RoomCapability[]
+  subjRules  SubjectCapabilityRule[]
 }
 
 model CapabilityOption {
-  id            Int    @id @default(autoincrement())
-  capability_id Int
-  key           String
-  name          String
-  sort          Int    @default(0)
+  id           Int    @id @default(autoincrement())
+  capabilityId Int
+  key          String
+  name         String
+  sort         Int    @default(0)
 
-  capability                  Capability                    @relation(fields: [capability_id], references: [id], onDelete: Cascade)
-  RoomCapability              RoomCapability[]
-  SubjectCapabilityRule       SubjectCapabilityRule[]
-  SubjectCapabilityRuleOption SubjectCapabilityRuleOption[]
+  capability   Capability                    @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  roomCaps     RoomCapability[]
+  subjRules    SubjectCapabilityRule[]
+  subjRuleOpts SubjectCapabilityRuleOption[]
 
-  @@unique([capability_id, key])
-  @@index([capability_id])
+  @@unique([capabilityId, key])
+  @@index([capabilityId])
 }
 
 model RoomCapability {
-  room_id       Int
-  capability_id Int
+  roomId       Int
+  capabilityId Int
 
-  room       Room       @relation(fields: [room_id], references: [id], onDelete: Cascade)
-  capability Capability @relation(fields: [capability_id], references: [id], onDelete: Cascade)
+  room       Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  capability Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
 
-  bool_value Boolean?
-  int_value  Int?
-  text_value String?
-  option_id  Int?
-  option     CapabilityOption? @relation(fields: [option_id], references: [id])
-  // TODO: CHECK чтобы было заполнено ровно одно из *_value / option_id
+  boolValue Boolean?
+  intValue  Int?
+  textValue String?
+  optionId  Int?
+  option    CapabilityOption? @relation(fields: [optionId], references: [id])
 
-  @@id([room_id, capability_id])
-  @@index([capability_id])
+  @@id([roomId, capabilityId])
+  @@index([capabilityId])
 }
 
 //////////////////////
@@ -300,10 +297,10 @@ model RoomCapability {
 //////////////////////
 
 model Subject {
-  id         Int      @id @default(autoincrement())
-  code       String   @unique
-  name       String
-  created_at DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
 
   rules   SubjectCapabilityRule[]
   lessons Lesson[]
@@ -319,34 +316,34 @@ enum CapabilityOperator {
 }
 
 model SubjectCapabilityRule {
-  id            Int                @id @default(autoincrement())
-  subject_id    Int
-  capability_id Int
-  operator      CapabilityOperator
+  id           Int                @id @default(autoincrement())
+  subjectId    Int
+  capabilityId Int
+  operator     CapabilityOperator
 
-  subject    Subject    @relation(fields: [subject_id], references: [id], onDelete: Cascade)
-  capability Capability @relation(fields: [capability_id], references: [id], onDelete: Cascade)
+  subject    Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  capability Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
 
-  bool_value Boolean?
-  int_value  Int?
-  text_value String?
-  option_id  Int?
-  option     CapabilityOption? @relation(fields: [option_id], references: [id])
+  boolValue Boolean?
+  intValue  Int?
+  textValue String?
+  optionId  Int?
+  option    CapabilityOption? @relation(fields: [optionId], references: [id])
 
-  options_in SubjectCapabilityRuleOption[]
+  optionsIn SubjectCapabilityRuleOption[]
 
-  @@unique([subject_id, capability_id, operator])
-  @@index([capability_id])
+  @@unique([subjectId, capabilityId, operator])
+  @@index([capabilityId])
 }
 
 model SubjectCapabilityRuleOption {
-  rule_id   Int
-  option_id Int
+  ruleId   Int
+  optionId Int
 
-  rule   SubjectCapabilityRule @relation(fields: [rule_id], references: [id], onDelete: Cascade)
-  option CapabilityOption      @relation(fields: [option_id], references: [id], onDelete: Cascade)
+  rule   SubjectCapabilityRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  option CapabilityOption      @relation(fields: [optionId], references: [id], onDelete: Cascade)
 
-  @@id([rule_id, option_id])
+  @@id([ruleId, optionId])
 }
 
 //////////////////////
@@ -360,43 +357,43 @@ enum StaffType {
 }
 
 model Staff {
-  id         Int       @id @default(autoincrement())
-  person_id  Int       @unique
-  type       StaffType
-  created_at DateTime  @default(now())
+  id        Int       @id @default(autoincrement())
+  personId  Int       @unique
+  type      StaffType
+  createdAt DateTime  @default(now())
 
-  person         Person              @relation(fields: [person_id], references: [id])
+  person         Person              @relation(fields: [personId], references: [id])
   availabilities StaffAvailability[]
   exceptions     StaffException[]
   lessons        Lesson[]            @relation("LessonTeacher")
 }
 
 model StaffAvailability {
-  id             Int       @id @default(autoincrement())
-  staff_id       Int
-  weekday        Int
-  starts_at_min  Int
-  ends_at_min    Int
-  interval_weeks Int       @default(1)
-  week_offset    Int       @default(0)
-  valid_from     DateTime?
-  valid_until    DateTime?
+  id            Int       @id @default(autoincrement())
+  staffId       Int
+  weekday       Int
+  startsAtMin   Int
+  endsAtMin     Int
+  intervalWeeks Int       @default(1)
+  weekOffset    Int       @default(0)
+  validFrom     DateTime?
+  validUntil    DateTime?
 
-  staff Staff @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
-  @@index([staff_id, weekday])
+  @@index([staffId, weekday])
 }
 
 model StaffException {
-  id       Int      @id @default(autoincrement())
-  staff_id Int
-  date     DateTime
-  reason   String?
+  id      Int      @id @default(autoincrement())
+  staffId Int
+  date    DateTime
+  reason  String?
 
-  staff Staff @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
-  @@unique([staff_id, date])
-  @@index([staff_id, date])
+  @@unique([staffId, date])
+  @@index([staffId, date])
 }
 
 //////////////////////
@@ -411,19 +408,19 @@ enum LessonStatus {
 }
 
 model LessonBatch {
-  id         Int      @id @default(autoincrement())
-  key        String   @unique
-  title      String?
-  notes      String?
-  created_at DateTime @default(now())
-  created_by Int?
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  title     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  createdBy Int?
 
-  creator User?         @relation("LessonBatchCreatedBy", fields: [created_by], references: [id])
+  creator User?         @relation("LessonBatchCreatedBy", fields: [createdBy], references: [id])
   events  LessonEvent[]
   lessons Lesson[]
 
   @@index([key])
-  @@index([created_at])
+  @@index([createdAt])
 }
 
 enum LessonEventType {
@@ -435,45 +432,45 @@ enum LessonEventType {
 }
 
 model LessonEvent {
-  id         Int             @id @default(autoincrement())
-  batch_id   Int
-  type       LessonEventType
-  created_at DateTime        @default(now())
-  created_by Int?
-  message    String?
+  id        Int             @id @default(autoincrement())
+  batchId   Int
+  type      LessonEventType
+  createdAt DateTime        @default(now())
+  createdBy Int?
+  message   String?
 
-  batch   LessonBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
-  creator User?       @relation("LessonEventCreatedBy", fields: [created_by], references: [id])
+  batch   LessonBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  creator User?       @relation("LessonEventCreatedBy", fields: [createdBy], references: [id])
 
-  @@index([batch_id])
-  @@index([created_at])
+  @@index([batchId])
+  @@index([createdAt])
   @@index([type])
 }
 
 model Lesson {
-  id            Int      @id @default(autoincrement())
-  date          DateTime
-  starts_at_min Int
-  ends_at_min   Int
+  id          Int      @id @default(autoincrement())
+  date        DateTime
+  startsAtMin Int
+  endsAtMin   Int
 
-  group_id   Int
-  room_id    Int
-  subject_id Int
-  teacher_id Int
-  batch_id   Int?
+  groupId   Int
+  roomId    Int
+  subjectId Int
+  teacherId Int
+  batchId   Int?
 
   status LessonStatus @default(DRAFT)
 
-  group   EduGroup     @relation(fields: [group_id], references: [id], onDelete: Cascade)
-  room    Room         @relation(fields: [room_id], references: [id])
-  subject Subject      @relation(fields: [subject_id], references: [id])
-  teacher Staff        @relation("LessonTeacher", fields: [teacher_id], references: [id])
-  batch   LessonBatch? @relation(fields: [batch_id], references: [id])
+  group   EduGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  room    Room         @relation(fields: [roomId], references: [id])
+  subject Subject      @relation(fields: [subjectId], references: [id])
+  teacher Staff        @relation("LessonTeacher", fields: [teacherId], references: [id])
+  batch   LessonBatch? @relation(fields: [batchId], references: [id])
 
-  @@index([date, starts_at_min, ends_at_min])
-  @@index([room_id, date, starts_at_min])
-  @@index([teacher_id, date, starts_at_min])
-  @@index([group_id, date, starts_at_min])
+  @@index([date, startsAtMin, endsAtMin])
+  @@index([roomId, date, startsAtMin])
+  @@index([teacherId, date, startsAtMin])
+  @@index([groupId, date, startsAtMin])
   @@index([status])
-  @@index([batch_id])
+  @@index([batchId])
 }

@@ -10,7 +10,6 @@ async function main() {
   console.log("🌱 Seeding RBAC...");
 
   // ===== Permissions =====
-  // Глобальные права для суперадмина/админперсонала
   const perms = await prisma.$transaction([
     prisma.permission.upsert({
       where: { key: "all:read" },
@@ -22,29 +21,27 @@ async function main() {
       update: {},
       create: { key: "all:write", description: "Write everything" },
     }),
-    // Родитель видит только свою семью
     prisma.permission.upsert({
-      where: { key: "family:read_own" },
+      where: { key: "family:readOwn" },
       update: {},
       create: {
-        key: "family:read_own",
+        key: "family:readOwn",
         description: "Parent can read own family",
       },
     }),
-    // Педагог видит свою учебную группу, её учеников и их родителей
     prisma.permission.upsert({
-      where: { key: "group:read_assigned" },
+      where: { key: "group:readAssigned" },
       update: {},
       create: {
-        key: "group:read_assigned",
+        key: "group:readAssigned",
         description: "Teacher can read assigned group and related people",
       },
     }),
     prisma.permission.upsert({
-      where: { key: "schedule:manage_group" },
+      where: { key: "schedule:manageGroup" },
       update: {},
       create: {
-        key: "schedule:manage_group",
+        key: "schedule:manageGroup",
         description: "Teacher can manage schedule for assigned group",
       },
     }),
@@ -75,10 +72,10 @@ async function main() {
   });
 
   const adminStaffRole = await prisma.role.upsert({
-    where: { key: "admin_staff" },
+    where: { key: "adminStaff" },
     update: {},
     create: {
-      key: "admin_staff",
+      key: "adminStaff",
       name: "Administrative Staff",
       permissions: {
         create: [
@@ -116,7 +113,7 @@ async function main() {
     },
   });
 
-  // ===== Auth Groups (containers for roles) =====
+  // ===== Auth Groups =====
   const adminsGroup = await prisma.authGroup.upsert({
     where: { key: "admins" },
     update: {},
@@ -128,10 +125,10 @@ async function main() {
   });
 
   const adminStaffGroup = await prisma.authGroup.upsert({
-    where: { key: "admin_staff" },
+    where: { key: "adminStaff" },
     update: {},
     create: {
-      key: "admin_staff",
+      key: "adminStaff",
       name: "Administrative Staff",
       roles: { create: { role: { connect: { id: adminStaffRole.id } } } },
     },
@@ -157,21 +154,19 @@ async function main() {
     },
   });
 
-  // ===== Admin user (sees everything) =====
+  // ===== Admin user =====
   console.log("👤 Creating admin user...");
   const adminPassword = await hash(
     "admin",
     Number(process.env.HASH_SALT) || 10,
   );
 
-  console.log(process.env.HASH_SALT);
-
   const adminPerson = await prisma.person.upsert({
-    where: { id: 1 }, // безопасный upsert через unique; если хочешь по email, меняй where
+    where: { id: 1 },
     update: {},
     create: {
-      first_name: "System",
-      last_name: "Admin",
+      firstName: "System",
+      lastName: "Admin",
       email: "admin@example.com",
     },
   });
@@ -181,21 +176,21 @@ async function main() {
     update: {},
     create: {
       username: "admin",
-      password_hash: adminPassword,
+      passwordHash: adminPassword,
       person: { connect: { id: adminPerson.id } },
       groups: { create: { group: { connect: { id: adminsGroup.id } } } },
     },
   });
 
-  // ===== Minimal domain data =====
+  // ===== Academic structure =====
   console.log("🏫 Creating academic structure...");
   const year = await prisma.academicYear.upsert({
     where: { code: "2024/2025" },
     update: {},
     create: {
       code: "2024/2025",
-      starts_on: new Date("2024-09-01T00:00:00Z"),
-      ends_on: new Date("2025-05-31T00:00:00Z"),
+      startsOn: new Date("2024-09-01T00:00:00Z"),
+      endsOn: new Date("2025-05-31T00:00:00Z"),
     },
   });
 
@@ -205,8 +200,8 @@ async function main() {
     create: {
       key: "class-1A-2024",
       name: "1A",
-      grade_level: 1,
-      academic_year_id: year.id,
+      gradeLevel: 1,
+      academicYearId: year.id,
     },
   });
 
@@ -217,12 +212,9 @@ async function main() {
   });
 
   const room101 = await prisma.room.upsert({
-    where: {
-      // unique по (building_id, name) в Prisma — составной нужно через find/create; делаем простой upsert по surrogate
-      id: 1,
-    },
+    where: { id: 1 },
     update: {},
-    create: { name: "101", building_id: building.id, capacity: 24 },
+    create: { name: "101", buildingId: building.id, capacity: 24 },
   });
 
   const subjectMath = await prisma.subject.upsert({
@@ -231,53 +223,52 @@ async function main() {
     create: { code: "MATH", name: "Mathematics" },
   });
 
-  // ===== Teacher (staff) =====
+  // ===== Teacher =====
   console.log("👩‍🏫 Creating teacher...");
   const teacherPerson = await prisma.person.create({
-    data: { first_name: "Alice", last_name: "Teacher" },
+    data: { firstName: "Alice", lastName: "Teacher" },
   });
   const teacherStaff = await prisma.staff.create({
-    data: { person_id: teacherPerson.id, type: StaffType.TEACHER },
+    data: { personId: teacherPerson.id, type: StaffType.TEACHER },
   });
 
-  // ===== Family (guardian + student) =====
+  // ===== Family =====
   console.log("👨‍👩‍👧 Creating family...");
-  const fam = await prisma.family.create({
+  const family = await prisma.family.create({
     data: { key: "family-ivanov", name: "Family Ivanov" },
   });
 
   const studentPerson = await prisma.person.create({
-    data: { first_name: "Ivan", last_name: "Ivanov" },
+    data: { firstName: "Ivan", lastName: "Ivanov" },
   });
   const student = await prisma.student.create({
-    data: { person_id: studentPerson.id, external_id: "S-0001" },
+    data: { personId: studentPerson.id, externalId: "S-0001" },
   });
 
   const guardianPerson = await prisma.person.create({
     data: {
-      first_name: "Petr",
-      last_name: "Ivanov",
+      firstName: "Petr",
+      lastName: "Ivanov",
       email: "parent@example.com",
     },
   });
   const guardian = await prisma.guardian.create({
-    data: { person_id: guardianPerson.id, type: "PARENT" },
+    data: { personId: guardianPerson.id, type: "PARENT" },
   });
 
   await prisma.familyMember.createMany({
     data: [
-      { family_id: fam.id, role: "STUDENT", student_id: student.id },
-      { family_id: fam.id, role: "GUARDIAN", guardian_id: guardian.id },
+      { familyId: family.id, role: "STUDENT", studentId: student.id },
+      { familyId: family.id, role: "GUARDIAN", guardianId: guardian.id },
     ],
     skipDuplicates: true,
   });
 
-  // Привязываем ученика к группе
   await prisma.groupMembership.create({
-    data: { student_id: student.id, group_id: group1A.id },
+    data: { studentId: student.id, groupId: group1A.id },
   });
 
-  // ===== Add sample lesson batch & lessons (DRAFT) =====
+  // ===== Lessons =====
   console.log("🗓️ Creating lesson batch...");
   const batch = await prisma.lessonBatch.upsert({
     where: { key: "demo-week" },
@@ -285,7 +276,7 @@ async function main() {
     create: {
       key: "demo-week",
       title: "Demo Draft Week",
-      created_by: adminUser.id,
+      createdBy: adminUser.id,
     },
   });
 
@@ -293,30 +284,30 @@ async function main() {
   const start = new Date(
     Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
   );
+
   for (let i = 0; i < 3; i++) {
     const d = new Date(start);
     d.setUTCDate(start.getUTCDate() + i);
     await prisma.lesson.create({
       data: {
         date: d,
-        starts_at_min: 9 * 60,
-        ends_at_min: 10 * 60,
-        group_id: group1A.id,
-        room_id: room101.id,
-        subject_id: subjectMath.id,
-        teacher_id: teacherStaff.id,
-        batch_id: batch.id,
+        startsAtMin: 9 * 60,
+        endsAtMin: 10 * 60,
+        groupId: group1A.id,
+        roomId: room101.id,
+        subjectId: subjectMath.id,
+        teacherId: teacherStaff.id,
+        batchId: batch.id,
         status: "DRAFT",
       },
     });
   }
 
-  // ===== Optional: put example users into role-based groups =====
-  // Пример: учитель в группу teachers; родитель в группу parents
+  // ===== Example users =====
   await prisma.user.create({
     data: {
       username: "teacher",
-      password_hash: await hash("teacher", 10),
+      passwordHash: await hash("teacher", 10),
       person: { connect: { id: teacherPerson.id } },
       groups: { create: { group: { connect: { id: teachersGroup.id } } } },
     },
@@ -325,7 +316,7 @@ async function main() {
   await prisma.user.create({
     data: {
       username: "parent",
-      password_hash: await hash("parent", 10),
+      passwordHash: await hash("parent", 10),
       person: { connect: { id: guardianPerson.id } },
       groups: { create: { group: { connect: { id: parentsGroup.id } } } },
     },

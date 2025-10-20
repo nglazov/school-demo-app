@@ -50,13 +50,13 @@ export async function loginAction(
     password: formData.get("password"),
   });
 
-  console.log(parsed);
-
   if (!parsed.success) return { error: "Некорректные данные" };
 
   const { username, password } = parsed.data;
   const user = await prisma.user.findUnique({ where: { username } });
   if (!user) return { error: "Неверные логин или пароль" };
+
+  console.log(user);
 
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return { error: "Неверные логин или пароль" };

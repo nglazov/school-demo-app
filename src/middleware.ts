@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { jwtSecret } from "@/lib/jwt";
 
 // ✳️ Пути, доступные без авторизации
 const PUBLIC_PATHS = new Set([
@@ -37,10 +38,7 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    const secret = new TextEncoder().encode(
-      process.env.SESSION_SECRET || "dev-secret-change-me",
-    );
-    await jwtVerify(token, secret); // валидируем подпись и exp
+    await jwtVerify(token, jwtSecret()); // валидируем подпись и exp
     return NextResponse.next();
   } catch {
     const url = new URL("/auth", req.url);
