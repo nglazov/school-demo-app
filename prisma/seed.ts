@@ -164,6 +164,8 @@ async function main() {
     Number(process.env.HASH_SALT) || 10,
   );
 
+  console.log(process.env.HASH_SALT);
+
   const adminPerson = await prisma.person.upsert({
     where: { id: 1 }, // безопасный upsert через unique; если хочешь по email, меняй where
     update: {},

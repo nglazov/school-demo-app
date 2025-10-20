@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useEffect, useState, useActionState } from "react";
+import { useFormStatus } from "react-dom";
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -13,8 +15,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+
+// Импортируй server actions
 import { loginAction, signupAction } from "./actions";
-import { useEffect, useState } from "react";
+
+function SubmitButton({ idle, busy }: { idle: string; busy: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? busy : idle}
+    </Button>
+  );
+}
 
 export default function AuthPage() {
   const sp = useSearchParams();
@@ -24,14 +36,9 @@ export default function AuthPage() {
     | "signup";
   const [tab, setTab] = useState<"login" | "signup">(initialTab);
 
-  const [loginState, loginAct, loginPending] = useActionState(loginAction, {
-    ok: false,
-    message: "",
-  });
-  const [signupState, signupAct, signupPending] = useActionState(signupAction, {
-    ok: false,
-    message: "",
-  });
+  // useFormState ожидает (prevState, formData) сигнатуру у server action
+  const [loginState, loginFormAction] = useActionState(loginAction, {});
+  const [signupState, signupFormAction] = useActionState(signupAction, {});
 
   useEffect(() => setTab(initialTab), [initialTab]);
 
@@ -54,7 +61,7 @@ export default function AuthPage() {
             </TabsList>
 
             <TabsContent value="login">
-              <form action={loginAct} className="space-y-3">
+              <form action={loginFormAction} className="space-y-3">
                 <input type="hidden" name="next" value={next} />
                 <div className="space-y-1.5">
                   <Label htmlFor="login-username">Username</Label>
@@ -75,21 +82,15 @@ export default function AuthPage() {
                     required
                   />
                 </div>
-                {loginState?.message && !loginPending && (
-                  <p className="text-sm text-red-600">{loginState.message}</p>
+                {loginState?.error && (
+                  <p className="text-sm text-red-600">{loginState.error}</p>
                 )}
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loginPending}
-                >
-                  {loginPending ? "Входим..." : "Войти"}
-                </Button>
+                <SubmitButton idle="Войти" busy="Входим..." />
               </form>
             </TabsContent>
 
             <TabsContent value="signup">
-              <form action={signupAct} className="space-y-3">
+              <form action={signupFormAction} className="space-y-3">
                 <input type="hidden" name="next" value={next} />
                 <div className="space-y-1.5">
                   <Label htmlFor="signup-username">Username</Label>
@@ -110,16 +111,10 @@ export default function AuthPage() {
                     required
                   />
                 </div>
-                {signupState?.message && !signupPending && (
-                  <p className="text-sm text-red-600">{signupState.message}</p>
+                {signupState?.error && (
+                  <p className="text-sm text-red-600">{signupState.error}</p>
                 )}
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={signupPending}
-                >
-                  {signupPending ? "Создаём..." : "Зарегистрироваться"}
-                </Button>
+                <SubmitButton idle="Зарегистрироваться" busy="Создаём..." />
               </form>
             </TabsContent>
           </Tabs>
