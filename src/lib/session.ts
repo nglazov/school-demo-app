@@ -38,3 +38,11 @@ export async function getSession(): Promise<Session | null> {
     return null;
   }
 }
+
+export async function getSessionCasted() {
+  const session = await getSession();
+
+  if (!session) return null;
+
+  return { ...session, sub: Number(session.sub) };
+}

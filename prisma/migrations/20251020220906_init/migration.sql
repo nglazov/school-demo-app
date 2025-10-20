@@ -47,56 +47,28 @@ CREATE TABLE "Person" (
 -- CreateTable
 CREATE TABLE "Permission" (
     "id" SERIAL NOT NULL,
-    "key" TEXT NOT NULL,
-    "description" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "type" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
+    "scope" TEXT NOT NULL,
 
     CONSTRAINT "Permission_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Role" (
-    "id" SERIAL NOT NULL,
-    "key" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Role_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "RolePermission" (
-    "roleId" INTEGER NOT NULL,
+CREATE TABLE "UserGroupPermission" (
+    "userGroupId" INTEGER NOT NULL,
     "permissionId" INTEGER NOT NULL,
 
-    CONSTRAINT "RolePermission_pkey" PRIMARY KEY ("roleId","permissionId")
-);
-
--- CreateTable
-CREATE TABLE "AuthGroup" (
-    "id" SERIAL NOT NULL,
-    "key" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "AuthGroup_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "GroupRole" (
-    "groupId" INTEGER NOT NULL,
-    "roleId" INTEGER NOT NULL,
-
-    CONSTRAINT "GroupRole_pkey" PRIMARY KEY ("groupId","roleId")
+    CONSTRAINT "UserGroupPermission_pkey" PRIMARY KEY ("userGroupId","permissionId")
 );
 
 -- CreateTable
 CREATE TABLE "UserGroup" (
     "userId" INTEGER NOT NULL,
-    "groupId" INTEGER NOT NULL,
+    "id" INTEGER NOT NULL,
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UserGroup_pkey" PRIMARY KEY ("userId","groupId")
+    CONSTRAINT "UserGroup_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -343,16 +315,10 @@ CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 CREATE UNIQUE INDEX "User_personId_key" ON "User"("personId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Permission_key_key" ON "Permission"("key");
+CREATE UNIQUE INDEX "Permission_type_action_scope_key" ON "Permission"("type", "action", "scope");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Role_key_key" ON "Role"("key");
-
--- CreateIndex
-CREATE UNIQUE INDEX "AuthGroup_key_key" ON "AuthGroup"("key");
-
--- CreateIndex
-CREATE INDEX "UserGroup_groupId_idx" ON "UserGroup"("groupId");
+CREATE INDEX "UserGroup_id_idx" ON "UserGroup"("id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Student_personId_key" ON "Student"("personId");
@@ -466,22 +432,13 @@ CREATE INDEX "Lesson_batchId_idx" ON "Lesson"("batchId");
 ALTER TABLE "User" ADD CONSTRAINT "User_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UserGroupPermission" ADD CONSTRAINT "UserGroupPermission_userGroupId_fkey" FOREIGN KEY ("userGroupId") REFERENCES "UserGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GroupRole" ADD CONSTRAINT "GroupRole_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "AuthGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GroupRole" ADD CONSTRAINT "GroupRole_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UserGroupPermission" ADD CONSTRAINT "UserGroupPermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserGroup" ADD CONSTRAINT "UserGroup_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserGroup" ADD CONSTRAINT "UserGroup_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "AuthGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Student" ADD CONSTRAINT "Student_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
