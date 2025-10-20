@@ -1,12 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  // output = "src/generated/prisma" // если нужен кастомный путь
 }
 
 datasource db {
@@ -14,88 +9,476 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// === USERS ===
+//////////////////////
+// IDENTITY
+//////////////////////
+
 model User {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  username      String   @unique
+  password_hash String
+  created_at    DateTime @default(now())
 
-  // M:N с группами
-  groups UserGroup[]
+  person_id Int?    @unique
+  person    Person? @relation(fields: [person_id], references: [id])
 
-  @@index([username])
+  groups                 UserGroup[]
+  lesson_batches_created LessonBatch[] @relation("LessonBatchCreatedBy")
+  lesson_events_created  LessonEvent[] @relation("LessonEventCreatedBy")
 }
 
-// === GROUPS ===
-model Group {
-  id        Int      @id @default(autoincrement())
-  key       String   @unique // системное имя, например "admins"
-  name      String   @unique // читаемое имя, например "Администраторы"
-  createdAt DateTime @default(now())
+model Person {
+  id          Int       @id @default(autoincrement())
+  first_name  String
+  last_name   String
+  middle_name String?
+  birth_date  DateTime?
+  phone       String?
+  email       String?
+  created_at  DateTime  @default(now())
 
-  // M:N с пользователями
-  users UserGroup[]
-  // M:N с ролями
-  roles GroupRole[]
+  user     User?
+  student  Student?
+  guardian Guardian?
+  staff    Staff?
 }
 
-// === ROLES ===
-model Role {
-  id        Int      @id @default(autoincrement())
-  key       String   @unique // "manager", "teacher", "viewer"
-  name      String   @unique
-  createdAt DateTime @default(now())
+//////////////////////
+// RBAC
+//////////////////////
 
-  // M:N с правами
-  permissions RolePermission[]
-  // M:N с группами
-  groups      GroupRole[]
-}
-
-// === PERMISSIONS ===
 model Permission {
-  id        Int      @id @default(autoincrement())
-  key       String   @unique // "user:create", "user:update", ...
-  desc      String?
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  description String?
+  created_at  DateTime @default(now())
 
   roles RolePermission[]
 }
 
-// === LINK TABLES (явные, чтобы можно было добавить метаданные) ===
-model UserGroup {
-  userId   Int
-  groupId  Int
-  joinedAt DateTime @default(now())
+model Role {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique
+  name       String
+  created_at DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-
-  @@id([userId, groupId])
-  @@index([groupId])
-}
-
-model GroupRole {
-  groupId Int
-  roleId  Int
-  addedAt DateTime @default(now())
-
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  role  Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@id([groupId, roleId])
-  @@index([roleId])
+  permissions RolePermission[]
+  groups      GroupRole[]
 }
 
 model RolePermission {
-  roleId       Int
-  permissionId Int
-  addedAt      DateTime @default(now())
+  role_id       Int
+  permission_id Int
 
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
 
-  @@id([roleId, permissionId])
-  @@index([permissionId])
+  @@id([role_id, permission_id])
+}
+
+model AuthGroup {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique
+  name       String
+  created_at DateTime @default(now())
+
+  roles GroupRole[]
+  users UserGroup[]
+}
+
+model GroupRole {
+  group_id Int
+  role_id  Int
+
+  group AuthGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  role  Role      @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([group_id, role_id])
+}
+
+model UserGroup {
+  user_id   Int
+  group_id  Int
+  joined_at DateTime @default(now())
+
+  user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  group AuthGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, group_id])
+  @@index([group_id])
+}
+
+//////////////////////
+// STUDENT / GUARDIAN / FAMILY
+//////////////////////
+
+enum GuardianType {
+  PARENT
+  TUTOR
+  CAREGIVER
+}
+
+enum FamilyMemberRole {
+  STUDENT
+  GUARDIAN
+}
+
+model Student {
+  id          Int     @id @default(autoincrement())
+  person_id   Int     @unique
+  external_id String?
+
+  person Person @relation(fields: [person_id], references: [id])
+
+  families          FamilyMember[]
+  group_memberships GroupMembership[]
+}
+
+model Guardian {
+  id        Int          @id @default(autoincrement())
+  person_id Int          @unique
+  type      GuardianType @default(PARENT)
+
+  person   Person         @relation(fields: [person_id], references: [id])
+  families FamilyMember[]
+}
+
+model Family {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique
+  name       String?
+  created_at DateTime @default(now())
+
+  members FamilyMember[]
+}
+
+model FamilyMember {
+  id          Int              @id @default(autoincrement())
+  family_id   Int
+  role        FamilyMemberRole
+  student_id  Int?
+  guardian_id Int?
+  joined_at   DateTime         @default(now())
+
+  family   Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  student  Student?  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  guardian Guardian? @relation(fields: [guardian_id], references: [id], onDelete: Cascade)
+  // TODO: CHECK ( (student_id IS NOT NULL) <> (guardian_id IS NOT NULL) )
+
+  @@index([family_id])
+  @@index([student_id])
+  @@index([guardian_id])
+}
+
+//////////////////////
+// ACADEMIC YEAR / EDU GROUPS / MEMBERSHIP
+//////////////////////
+
+model AcademicYear {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique
+  starts_on  DateTime
+  ends_on    DateTime
+  created_at DateTime @default(now())
+
+  groups EduGroup[]
+}
+
+model EduGroup {
+  id               Int      @id @default(autoincrement())
+  key              String   @unique
+  name             String
+  grade_level      Int?
+  academic_year_id Int
+  track            String?
+  created_at       DateTime @default(now())
+
+  academic_year AcademicYear      @relation(fields: [academic_year_id], references: [id])
+  memberships   GroupMembership[]
+  Lesson        Lesson[]
+
+  @@index([academic_year_id])
+}
+
+model GroupMembership {
+  id         Int       @id @default(autoincrement())
+  student_id Int
+  group_id   Int
+  since      DateTime  @default(now())
+  until      DateTime?
+
+  student Student  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  group   EduGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+
+  @@unique([student_id, group_id, since])
+  @@index([group_id])
+}
+
+//////////////////////
+// BUILDING / ROOM with CAPABILITIES
+//////////////////////
+
+model Building {
+  id         Int      @id @default(autoincrement())
+  name       String
+  address    String?
+  created_at DateTime @default(now())
+
+  rooms Room[]
+}
+
+model Room {
+  id          Int     @id @default(autoincrement())
+  building_id Int
+  name        String
+  capacity    Int?
+  notes       String?
+
+  building     Building         @relation(fields: [building_id], references: [id])
+  capabilities RoomCapability[]
+  lessons      Lesson[]
+
+  @@unique([building_id, name])
+  @@index([building_id])
+}
+
+enum CapabilityValueType {
+  BOOL
+  ENUM
+  INT
+  TEXT
+}
+
+model Capability {
+  id         Int                 @id @default(autoincrement())
+  key        String              @unique
+  name       String
+  value_type CapabilityValueType
+  created_at DateTime            @default(now())
+
+  options     CapabilityOption[]
+  room_values RoomCapability[]
+  subj_rules  SubjectCapabilityRule[]
+}
+
+model CapabilityOption {
+  id            Int    @id @default(autoincrement())
+  capability_id Int
+  key           String
+  name          String
+  sort          Int    @default(0)
+
+  capability                  Capability                    @relation(fields: [capability_id], references: [id], onDelete: Cascade)
+  RoomCapability              RoomCapability[]
+  SubjectCapabilityRule       SubjectCapabilityRule[]
+  SubjectCapabilityRuleOption SubjectCapabilityRuleOption[]
+
+  @@unique([capability_id, key])
+  @@index([capability_id])
+}
+
+model RoomCapability {
+  room_id       Int
+  capability_id Int
+
+  room       Room       @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  capability Capability @relation(fields: [capability_id], references: [id], onDelete: Cascade)
+
+  bool_value Boolean?
+  int_value  Int?
+  text_value String?
+  option_id  Int?
+  option     CapabilityOption? @relation(fields: [option_id], references: [id])
+  // TODO: CHECK чтобы было заполнено ровно одно из *_value / option_id
+
+  @@id([room_id, capability_id])
+  @@index([capability_id])
+}
+
+//////////////////////
+// SUBJECTS + CAPABILITY RULES
+//////////////////////
+
+model Subject {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique
+  name       String
+  created_at DateTime @default(now())
+
+  rules   SubjectCapabilityRule[]
+  lessons Lesson[]
+}
+
+enum CapabilityOperator {
+  REQUIRED
+  PROHIBITED
+  EQUALS
+  IN
+  GTE
+  LTE
+}
+
+model SubjectCapabilityRule {
+  id            Int                @id @default(autoincrement())
+  subject_id    Int
+  capability_id Int
+  operator      CapabilityOperator
+
+  subject    Subject    @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+  capability Capability @relation(fields: [capability_id], references: [id], onDelete: Cascade)
+
+  bool_value Boolean?
+  int_value  Int?
+  text_value String?
+  option_id  Int?
+  option     CapabilityOption? @relation(fields: [option_id], references: [id])
+
+  options_in SubjectCapabilityRuleOption[]
+
+  @@unique([subject_id, capability_id, operator])
+  @@index([capability_id])
+}
+
+model SubjectCapabilityRuleOption {
+  rule_id   Int
+  option_id Int
+
+  rule   SubjectCapabilityRule @relation(fields: [rule_id], references: [id], onDelete: Cascade)
+  option CapabilityOption      @relation(fields: [option_id], references: [id], onDelete: Cascade)
+
+  @@id([rule_id, option_id])
+}
+
+//////////////////////
+// STAFF / AVAILABILITY / EXCEPTIONS
+//////////////////////
+
+enum StaffType {
+  TEACHER
+  ADMIN
+  SUPPORT
+}
+
+model Staff {
+  id         Int       @id @default(autoincrement())
+  person_id  Int       @unique
+  type       StaffType
+  created_at DateTime  @default(now())
+
+  person         Person              @relation(fields: [person_id], references: [id])
+  availabilities StaffAvailability[]
+  exceptions     StaffException[]
+  lessons        Lesson[]            @relation("LessonTeacher")
+}
+
+model StaffAvailability {
+  id             Int       @id @default(autoincrement())
+  staff_id       Int
+  weekday        Int
+  starts_at_min  Int
+  ends_at_min    Int
+  interval_weeks Int       @default(1)
+  week_offset    Int       @default(0)
+  valid_from     DateTime?
+  valid_until    DateTime?
+
+  staff Staff @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@index([staff_id, weekday])
+}
+
+model StaffException {
+  id       Int      @id @default(autoincrement())
+  staff_id Int
+  date     DateTime
+  reason   String?
+
+  staff Staff @relation(fields: [staff_id], references: [id], onDelete: Cascade)
+
+  @@unique([staff_id, date])
+  @@index([staff_id, date])
+}
+
+//////////////////////
+// SCHEDULING (LESSONS + BATCHES + EVENTS)
+//////////////////////
+
+enum LessonStatus {
+  SCHEDULED
+  CANCELED
+  COMPLETED
+  DRAFT
+}
+
+model LessonBatch {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique
+  title      String?
+  notes      String?
+  created_at DateTime @default(now())
+  created_by Int?
+
+  creator User?         @relation("LessonBatchCreatedBy", fields: [created_by], references: [id])
+  events  LessonEvent[]
+  lessons Lesson[]
+
+  @@index([key])
+  @@index([created_at])
+}
+
+enum LessonEventType {
+  CREATED
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+  NOTE
+}
+
+model LessonEvent {
+  id         Int             @id @default(autoincrement())
+  batch_id   Int
+  type       LessonEventType
+  created_at DateTime        @default(now())
+  created_by Int?
+  message    String?
+
+  batch   LessonBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  creator User?       @relation("LessonEventCreatedBy", fields: [created_by], references: [id])
+
+  @@index([batch_id])
+  @@index([created_at])
+  @@index([type])
+}
+
+model Lesson {
+  id            Int      @id @default(autoincrement())
+  date          DateTime
+  starts_at_min Int
+  ends_at_min   Int
+
+  group_id   Int
+  room_id    Int
+  subject_id Int
+  teacher_id Int
+  batch_id   Int?
+
+  status LessonStatus @default(DRAFT)
+
+  group   EduGroup     @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  room    Room         @relation(fields: [room_id], references: [id])
+  subject Subject      @relation(fields: [subject_id], references: [id])
+  teacher Staff        @relation("LessonTeacher", fields: [teacher_id], references: [id])
+  batch   LessonBatch? @relation(fields: [batch_id], references: [id])
+
+  @@index([date, starts_at_min, ends_at_min])
+  @@index([room_id, date, starts_at_min])
+  @@index([teacher_id, date, starts_at_min])
+  @@index([group_id, date, starts_at_min])
+  @@index([status])
+  @@index([batch_id])
+}
+
+// Опционально, если хочешь оставить-заглушку из DBML:
+model DraftBatch {
+  id Int @id @default(autoincrement())
 }
