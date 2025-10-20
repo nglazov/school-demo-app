@@ -477,8 +477,3 @@ model Lesson {
   @@index([status])
   @@index([batch_id])
 }
-
-// Опционально, если хочешь оставить-заглушку из DBML:
-model DraftBatch {
-  id Int @id @default(autoincrement())
-}
