@@ -14,6 +14,7 @@ const ENTITIES = [
   { key: "building", title: "Здания", path: "/buildings" },
   { key: "guardian", title: "Опекуны", path: "/guardians" },
   { key: "student", title: "Ученики", path: "/students" },
+  { key: "group", title: "Группы", path: "/groups" },
   { key: "capability", title: "Ограничения", path: "/capabilities" },
   { key: "subject", title: "Предмет", path: "/subjects" },
 ];

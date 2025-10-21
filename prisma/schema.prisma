@@ -165,7 +165,7 @@ model EduGroup {
   id             Int      @id @default(autoincrement())
   key            String   @unique
   name           String
-  gradeLevel     Int?
+  gradeLevel     String?
   academicYearId Int
   track          String?
   createdAt      DateTime @default(now())

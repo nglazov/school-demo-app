@@ -18,8 +18,6 @@ export default async function DashboardPage() {
 
   const roles = await getUserRoles(session.sub);
 
-  console.log("roles", roles);
-
   return (
     <main className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Панель управления</h1>

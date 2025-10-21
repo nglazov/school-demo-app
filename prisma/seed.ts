@@ -1,7 +1,7 @@
 // prisma/seed.ts
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient, CapabilityValueType } from "@prisma/client";
+import { PrismaClient, CapabilityValueType, Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -19,7 +19,6 @@ const BASE_PERMS: PermTriple[] = [
   { type: "guardian", action: "read", scope: "all" },
   { type: "lesson", action: "read", scope: "all" },
   { type: "room", action: "read", scope: "all" },
-  { type: "subject", action: "read", scope: "all" },
   { type: "family", action: "read", scope: "own" },
   { type: "capability", action: "read", scope: "all" },
   { type: "capability", action: "write", scope: "all" },
@@ -27,13 +26,14 @@ const BASE_PERMS: PermTriple[] = [
   { type: "building", action: "write", scope: "all" },
   { type: "subject", action: "read", scope: "all" },
   { type: "subject", action: "write", scope: "all" },
+  { type: "group", action: "read", scope: "all" },
+  { type: "group", action: "write", scope: "all" },
 ];
 
 async function upsertPermissions() {
   const tx = BASE_PERMS.map((p) =>
     prisma.permission.upsert({
       where: {
-        // @@unique([type, action, scope])
         type_action_scope: { type: p.type, action: p.action, scope: p.scope },
       },
       update: {},
@@ -56,9 +56,17 @@ async function ensureUser(username: string, plainPassword: string) {
   });
 }
 
-/**
- * В схеме нет уникальности name у Building → findFirst + create.
- */
+/** AcademicYear: уникален по code → upsert */
+async function ensureAcademicYear(code: string, startsOn: Date, endsOn: Date) {
+  return prisma.academicYear.upsert({
+    where: { code },
+    update: { startsOn, endsOn },
+    create: { code, startsOn, endsOn },
+    select: { id: true, code: true },
+  });
+}
+
+/** В схеме нет unique на name у Building → findFirst + create. */
 async function ensureBuilding(name: string, address?: string | null) {
   const existing = await prisma.building.findFirst({
     where: { name },
@@ -72,9 +80,7 @@ async function ensureBuilding(name: string, address?: string | null) {
   });
 }
 
-/**
- * Capability уникальна по key → upsert.
- */
+/** Capability уникальна по key → upsert. */
 async function ensureCapability(
   key: string,
   name: string,
@@ -88,9 +94,24 @@ async function ensureCapability(
   });
 }
 
-/**
- * Room уникальна по (buildingId, name) → upsert по составному ключу.
- */
+/** EduGroup уникальна по key → upsert. */
+async function ensureEduGroup(params: {
+  key: string;
+  name: string;
+  academicYearId: number;
+  gradeLevel?: string | null;
+  track?: string | null;
+}) {
+  const { key, name, academicYearId, gradeLevel, track } = params;
+  return prisma.eduGroup.upsert({
+    where: { key },
+    update: { name, academicYearId, gradeLevel, track },
+    create: { key, name, academicYearId, gradeLevel, track },
+    select: { id: true, key: true, academicYearId: true },
+  });
+}
+
+/** Room уникальна по (buildingId, name) → upsert по составному ключу. */
 async function ensureRoom(
   buildingId: number,
   name: string,
@@ -98,7 +119,7 @@ async function ensureRoom(
   notes?: string | null,
 ) {
   return prisma.room.upsert({
-    where: { buildingId_name: { buildingId, name } }, // из @@unique([buildingId, name])
+    where: { buildingId_name: { buildingId, name } },
     update: { capacity: capacity ?? null, notes: notes ?? null },
     create: {
       buildingId,
@@ -110,16 +131,14 @@ async function ensureRoom(
   });
 }
 
-/**
- * Привязка значения capability к комнате (RoomCapability) по составному ключу.
- */
+/** RoomCapability по составному ключу. */
 async function upsertRoomCapabilityBool(
   roomId: number,
   capabilityId: number,
   value: boolean,
 ) {
   await prisma.roomCapability.upsert({
-    where: { roomId_capabilityId: { roomId, capabilityId } }, // @@id([roomId, capabilityId])
+    where: { roomId_capabilityId: { roomId, capabilityId } },
     update: { boolValue: value, intValue: null, textValue: null },
     create: { roomId, capabilityId, boolValue: value },
   });
@@ -137,9 +156,7 @@ async function upsertRoomCapabilityInt(
   });
 }
 
-/**
- * Т.к. в схеме нет unique на name у UserGroup, используем findFirst+create.
- */
+/** UserGroup (роль) — нет уникальности name → findFirst + create. */
 async function ensureRoleGroup(name: string) {
   const existing = await prisma.userGroup.findFirst({
     where: { name },
@@ -170,6 +187,65 @@ async function linkPermissionsToGroup(userGroupId: number, permIds: number[]) {
     }),
   );
   await prisma.$transaction(tx);
+}
+
+/** Создание Person+Student с якорем по externalId (идемпотентно). */
+async function ensureStudent(params: {
+  externalId: string; // используем как «уникальный» сид-идентификатор
+  firstName: string;
+  lastName: string;
+  middleName?: string | null;
+  birthDate?: Date | null;
+  phone?: string | null;
+  email?: string | null;
+}) {
+  const existing = await prisma.student.findFirst({
+    where: { externalId: params.externalId },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  const student = await prisma.$transaction(async (tx) => {
+    const person = await tx.person.create({
+      data: {
+        firstName: params.firstName,
+        lastName: params.lastName,
+        middleName: params.middleName ?? null,
+        birthDate: params.birthDate ?? null,
+        phone: params.phone ?? null,
+        email: params.email ?? null,
+      },
+      select: { id: true },
+    });
+
+    return tx.student.create({
+      data: {
+        personId: person.id,
+        externalId: params.externalId,
+      },
+      select: { id: true },
+    });
+  });
+
+  return student;
+}
+
+/** Членство студента в группе: если есть активное (until == null), не дублируем. */
+async function ensureGroupMembership(
+  studentId: number,
+  groupId: number,
+  since: Date,
+) {
+  const exists = await prisma.groupMembership.findFirst({
+    where: { studentId, groupId, until: null },
+    select: { id: true },
+  });
+  if (exists) return exists;
+
+  return prisma.groupMembership.create({
+    data: { studentId, groupId, since },
+    select: { id: true },
+  });
 }
 
 async function main() {
@@ -212,19 +288,17 @@ async function main() {
     ...pick("room", "read"),
     ...pick("subject", "read"),
     ...pick("family", "read", "own"),
+    ...pick("group", "read"),
   ];
   await linkPermissionsToGroup(
     teachersGroup.id,
     teacherPerms.map((p) => p.id),
   );
 
-  console.log("🏫 Seeding demo data: building, capabilities, rooms...");
-
-  // === DEMO DATA ===
-  // Building: Школа
+  // === DEMO DATA (infrastructure) ===
+  console.log("🏫 Seeding building, capabilities, rooms...");
   const school = await ensureBuilding("Школа");
 
-  // Capabilities
   const capCapacity = await ensureCapability(
     "capacity",
     "Вместимость",
@@ -235,26 +309,94 @@ async function main() {
     "Проектор",
     CapabilityValueType.BOOL,
   );
-  const capKitchen = await ensureCapability(
-    "kitchen",
-    "Кухня",
-    CapabilityValueType.BOOL,
-  );
+  await ensureCapability("kitchen", "Кухня", CapabilityValueType.BOOL);
 
-  // Rooms in Школа
   const room1 = await ensureRoom(school.id, "Кабинет 1", 10, null);
   const room2 = await ensureRoom(school.id, "Кабинет 2", 20, null);
 
-  // Attach capability values
   await upsertRoomCapabilityInt(room1.id, capCapacity.id, 10);
   await upsertRoomCapabilityBool(room1.id, capProjector.id, true);
-
   await upsertRoomCapabilityInt(room2.id, capCapacity.id, 20);
   await upsertRoomCapabilityBool(room2.id, capProjector.id, true);
 
-  // Кухня — по требованию не задаём на комнатах (оставим без значения)
-  // Если захочешь — можно проставить где нужно:
-  // await upsertRoomCapabilityBool(room1.id, capKitchen.id, false);
+  // === DEMO DATA (academic year + groups + students) ===
+  console.log("📅 Seeding academic year 25/26 and edu groups...");
+
+  const year = await ensureAcademicYear(
+    "25/26",
+    new Date("2025-09-01"),
+    new Date("2026-06-15"),
+  );
+
+  const g7a = await ensureEduGroup({
+    key: "7a-25-26",
+    name: "7А",
+    academicYearId: year.id,
+    gradeLevel: "7",
+    track: "A",
+  });
+  const g7b = await ensureEduGroup({
+    key: "7b-25-26",
+    name: "7Б",
+    academicYearId: year.id,
+    gradeLevel: "7",
+    track: "B",
+  });
+  const g8a = await ensureEduGroup({
+    key: "8a-25-26",
+    name: "8А",
+    academicYearId: year.id,
+    gradeLevel: "8",
+    track: "A",
+  });
+
+  // Наборы учеников для примера (externalId — якорь для идемпотентности)
+  const students7a = [
+    { ext: "7A-001", last: "Иванов", first: "Артём" },
+    { ext: "7A-002", last: "Петров", first: "Максим" },
+    { ext: "7A-003", last: "Сидоров", first: "Илья" },
+    { ext: "7A-004", last: "Кузнецова", first: "Анна" },
+    { ext: "7A-005", last: "Попова", first: "Мария" },
+    { ext: "7A-006", last: "Смирнов", first: "Даниил" },
+  ];
+  const students7b = [
+    { ext: "7B-001", last: "Васильев", first: "Кирилл" },
+    { ext: "7B-002", last: "Зайцева", first: "Ева" },
+    { ext: "7B-003", last: "Соколова", first: "Полина" },
+    { ext: "7B-004", last: "Николаев", first: "Матвей" },
+    { ext: "7B-005", last: "Ковалёва", first: "Алиса" },
+    { ext: "7B-006", last: "Голубев", first: "Роман" },
+    { ext: "7B-007", last: "Морозова", first: "Екатерина" },
+  ];
+  const students8a = [
+    { ext: "8A-001", last: "Фёдоров", first: "Егор" },
+    { ext: "8A-002", last: "Михайлова", first: "Вера" },
+    { ext: "8A-003", last: "Беляев", first: "Павел" },
+    { ext: "8A-004", last: "Тарасова", first: "Александра" },
+    { ext: "8A-005", last: "Громов", first: "Тимофей" },
+    { ext: "8A-006", last: "Ершова", first: "Милана" },
+  ];
+
+  // Создаём студентов и включаем их в группы с начала учебного года
+  const since = new Date("2025-09-01");
+
+  const createPack = async (
+    pairs: { ext: string; last: string; first: string }[],
+    groupId: number,
+  ) => {
+    for (const s of pairs) {
+      const st = await ensureStudent({
+        externalId: s.ext,
+        firstName: s.first,
+        lastName: s.last,
+      });
+      await ensureGroupMembership(st.id, groupId, since);
+    }
+  };
+
+  await createPack(students7a, g7a.id);
+  await createPack(students7b, g7b.id);
+  await createPack(students8a, g8a.id);
 
   console.log("✅ Seed complete.");
 }
@@ -262,6 +404,9 @@ async function main() {
 main()
   .catch((e) => {
     console.error("❌ Seed failed:", e);
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error("Prisma error code:", e.code, e.message);
+    }
     process.exit(1);
   })
   .finally(async () => {
