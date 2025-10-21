@@ -1,7 +1,7 @@
 // prisma/seed.ts
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, CapabilityValueType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -31,7 +31,7 @@ async function upsertPermissions() {
   const tx = BASE_PERMS.map((p) =>
     prisma.permission.upsert({
       where: {
-        // composite unique from @@unique([type, action, scope])
+        // @@unique([type, action, scope])
         type_action_scope: { type: p.type, action: p.action, scope: p.scope },
       },
       update: {},
@@ -55,6 +55,87 @@ async function ensureUser(username: string, plainPassword: string) {
 }
 
 /**
+ * В схеме нет уникальности name у Building → findFirst + create.
+ */
+async function ensureBuilding(name: string, address?: string | null) {
+  const existing = await prisma.building.findFirst({
+    where: { name },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  return prisma.building.create({
+    data: { name, address: address ?? null },
+    select: { id: true },
+  });
+}
+
+/**
+ * Capability уникальна по key → upsert.
+ */
+async function ensureCapability(
+  key: string,
+  name: string,
+  valueType: CapabilityValueType,
+) {
+  return prisma.capability.upsert({
+    where: { key },
+    update: { name, valueType },
+    create: { key, name, valueType },
+    select: { id: true, key: true },
+  });
+}
+
+/**
+ * Room уникальна по (buildingId, name) → upsert по составному ключу.
+ */
+async function ensureRoom(
+  buildingId: number,
+  name: string,
+  capacity?: number | null,
+  notes?: string | null,
+) {
+  return prisma.room.upsert({
+    where: { buildingId_name: { buildingId, name } }, // из @@unique([buildingId, name])
+    update: { capacity: capacity ?? null, notes: notes ?? null },
+    create: {
+      buildingId,
+      name,
+      capacity: capacity ?? null,
+      notes: notes ?? null,
+    },
+    select: { id: true, buildingId: true },
+  });
+}
+
+/**
+ * Привязка значения capability к комнате (RoomCapability) по составному ключу.
+ */
+async function upsertRoomCapabilityBool(
+  roomId: number,
+  capabilityId: number,
+  value: boolean,
+) {
+  await prisma.roomCapability.upsert({
+    where: { roomId_capabilityId: { roomId, capabilityId } }, // @@id([roomId, capabilityId])
+    update: { boolValue: value, intValue: null, textValue: null },
+    create: { roomId, capabilityId, boolValue: value },
+  });
+}
+
+async function upsertRoomCapabilityInt(
+  roomId: number,
+  capabilityId: number,
+  value: number,
+) {
+  await prisma.roomCapability.upsert({
+    where: { roomId_capabilityId: { roomId, capabilityId } },
+    update: { intValue: value, boolValue: null, textValue: null },
+    create: { roomId, capabilityId, intValue: value },
+  });
+}
+
+/**
  * Т.к. в схеме нет unique на name у UserGroup, используем findFirst+create.
  */
 async function ensureRoleGroup(name: string) {
@@ -71,7 +152,6 @@ async function ensureRoleGroup(name: string) {
 }
 
 async function addUserToGroup(userId: number, userGroupId: number) {
-  // @@id([userId, userGroupId]) позволяет upsert по составному ключу
   await prisma.userUserGroup.upsert({
     where: { userId_userGroupId: { userId, userGroupId } },
     update: {},
@@ -91,8 +171,7 @@ async function linkPermissionsToGroup(userGroupId: number, permIds: number[]) {
 }
 
 async function main() {
-  console.log("🌱 Seeding permissions, users and role groups...");
-
+  console.log("🌱 Seeding permissions, users, groups...");
   // 1) Права
   const perms = await upsertPermissions();
   const byType = (t: string) => perms.filter((p) => p.type === t);
@@ -115,18 +194,15 @@ async function main() {
   const adminsGroup = await ensureRoleGroup("Admins");
   const teachersGroup = await ensureRoleGroup("Teachers");
 
-  // 4) Вступление пользователей в группы (через UserUserGroup)
+  // 4) Членство пользователей
   await addUserToGroup(admin.id, adminsGroup.id);
   await addUserToGroup(teacher.id, teachersGroup.id);
 
   // 5) Права на группы
-  // Админы — все права
   await linkPermissionsToGroup(
     adminsGroup.id,
     perms.map((p) => p.id),
   );
-
-  // Учителя — ограниченный набор
   const teacherPerms = [
     ...byType("student"),
     ...byType("guardian"),
@@ -139,6 +215,44 @@ async function main() {
     teachersGroup.id,
     teacherPerms.map((p) => p.id),
   );
+
+  console.log("🏫 Seeding demo data: building, capabilities, rooms...");
+
+  // === DEMO DATA ===
+  // Building: Школа
+  const school = await ensureBuilding("Школа");
+
+  // Capabilities
+  const capCapacity = await ensureCapability(
+    "capacity",
+    "Вместимость",
+    CapabilityValueType.INT,
+  );
+  const capProjector = await ensureCapability(
+    "projector",
+    "Проектор",
+    CapabilityValueType.BOOL,
+  );
+  const capKitchen = await ensureCapability(
+    "kitchen",
+    "Кухня",
+    CapabilityValueType.BOOL,
+  );
+
+  // Rooms in Школа
+  const room1 = await ensureRoom(school.id, "Кабинет 1", 10, null);
+  const room2 = await ensureRoom(school.id, "Кабинет 2", 20, null);
+
+  // Attach capability values
+  await upsertRoomCapabilityInt(room1.id, capCapacity.id, 10);
+  await upsertRoomCapabilityBool(room1.id, capProjector.id, true);
+
+  await upsertRoomCapabilityInt(room2.id, capCapacity.id, 20);
+  await upsertRoomCapabilityBool(room2.id, capProjector.id, true);
+
+  // Кухня — по требованию не задаём на комнатах (оставим без значения)
+  // Если захочешь — можно проставить где нужно:
+  // await upsertRoomCapabilityBool(room1.id, capKitchen.id, false);
 
   console.log("✅ Seed complete.");
 }
