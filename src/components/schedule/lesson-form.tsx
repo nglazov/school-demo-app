@@ -1,3 +1,4 @@
+// components/schedule/lesson-form.tsx
 "use client";
 
 import * as React from "react";
@@ -12,21 +13,32 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createDraftLesson } from "@/app/(admin)/schedule/lesson-actions";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+import { createDraftLesson } from "@/app/(admin)/schedule/lesson-actions";
+import { fetchLessonFormOptions } from "@/app/(admin)/schedule/lesson-form-actions";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 
-  // минимальный набор данных для создания урока
-  batchId: number; // текущий DRAFT-батч
-  date: Date; // день (из слота/ячейки)
-  groupId: number; // колонка группы, по которой кликнули
+  batchId: number;
+  date: Date;
+  groupId: number;
 
-  // опционально: после успешного создания
   onCreated?: (lesson: any) => void;
 };
+
+type RoomOpt = { id: number; name: string };
+type SubjectOpt = { id: number; name: string };
+type TeacherOpt = { id: number; name: string; subjectIds: number[] };
 
 function parseTimeToMinutes(value: string): number | null {
   const s = value.trim();
@@ -46,27 +58,92 @@ export function LessonForm({
   groupId,
   onCreated,
 }: Props) {
+  // время
   const [startsAt, setStartsAt] = React.useState("10:00");
   const [endsAt, setEndsAt] = React.useState("11:00");
+
+  // выборы
   const [roomId, setRoomId] = React.useState<string>("");
   const [subjectId, setSubjectId] = React.useState<string>("");
   const [teacherId, setTeacherId] = React.useState<string>("");
 
+  // опции
+  const [rooms, setRooms] = React.useState<RoomOpt[]>([]);
+  const [subjects, setSubjects] = React.useState<SubjectOpt[]>([]);
+  const [teachers, setTeachers] = React.useState<TeacherOpt[]>([]);
+
+  // состояния
+  const [loadingOpts, setLoadingOpts] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // загрузка опций при открытии
   React.useEffect(() => {
-    // сброс формы при открытии
-    if (open) {
-      setStartsAt("10:00");
-      setEndsAt("11:00");
-      setRoomId("");
-      setSubjectId("");
-      setTeacherId("");
+    if (!open) return;
+    (async () => {
+      setLoadingOpts(true);
       setError(null);
-      setSubmitting(false);
-    }
+      try {
+        const { rooms, subjects, teachers } = await fetchLessonFormOptions();
+        setRooms(rooms);
+        setSubjects(subjects);
+        setTeachers(teachers);
+      } catch (e: any) {
+        setError(e?.message ?? "Не удалось загрузить параметры формы.");
+      } finally {
+        setLoadingOpts(false);
+      }
+    })();
+
+    // сброс значений
+    setStartsAt("10:00");
+    setEndsAt("11:00");
+    setRoomId("");
+    setSubjectId("");
+    setTeacherId("");
   }, [open]);
+
+  // фильтрация
+  const filteredTeachers = React.useMemo(() => {
+    if (!subjectId) return teachers;
+    const sid = Number(subjectId);
+    return teachers.filter((t) => t.subjectIds.includes(sid));
+  }, [teachers, subjectId]);
+
+  const filteredSubjects = React.useMemo(() => {
+    if (!teacherId) return subjects;
+    const tid = Number(teacherId);
+    const t = teachers.find((x) => x.id === tid);
+    if (!t) return subjects;
+    const allowed = new Set(t.subjectIds);
+    return subjects.filter((s) => allowed.has(s.id));
+  }, [subjects, teacherId, teachers]);
+
+  const handleSelectSubject = (val: string) => {
+    const v = val === "none" ? "" : val;
+    setSubjectId(v);
+    if (v && teacherId) {
+      const sid = Number(v);
+      const tid = Number(teacherId);
+      const t = teachers.find((x) => x.id === tid);
+      if (t && !t.subjectIds.includes(sid)) {
+        setTeacherId("");
+      }
+    }
+  };
+
+  const handleSelectTeacher = (val: string) => {
+    const v = val === "none" ? "" : val;
+    setTeacherId(v);
+    if (v && subjectId) {
+      const tid = Number(v);
+      const sid = Number(subjectId);
+      const t = teachers.find((x) => x.id === tid);
+      if (t && !t.subjectIds.includes(sid)) {
+        setSubjectId("");
+      }
+    }
+  };
 
   const onSubmit = async () => {
     setError(null);
@@ -95,9 +172,8 @@ export function LessonForm({
         subjectId: subjectId ? Number(subjectId) : null,
         teacherId: teacherId ? Number(teacherId) : null,
       });
-
       onOpenChange(false);
-      if (onCreated) onCreated(created);
+      onCreated?.(created);
     } catch (e: any) {
       setError(e?.message || "Не удалось создать урок.");
     } finally {
@@ -116,7 +192,8 @@ export function LessonForm({
           </div>
         </SheetHeader>
 
-        <div className="mt-6 space-y-4">
+        {/* карточка */}
+        <div className="mt-4 rounded-2xl border bg-card p-4 shadow-sm">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="startsAt">Начало (ЧЧ:ММ)</Label>
@@ -140,43 +217,78 @@ export function LessonForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="mt-4 grid gap-3">
+            {/* Аудитория */}
             <div className="space-y-2">
-              <Label htmlFor="roomId">Комната (ID, опц.)</Label>
-              <Input
-                id="roomId"
-                placeholder="например 5"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                inputMode="numeric"
-              />
+              <Label>Аудитория</Label>
+              <Select
+                value={roomId || "none"}
+                onValueChange={(val) => setRoomId(val === "none" ? "" : val)}
+                disabled={loadingOpts}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выбрать аудиторию (опционально)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Нет —</SelectItem>
+                  {rooms.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Предмет */}
             <div className="space-y-2">
-              <Label htmlFor="subjectId">Предмет (ID, опц.)</Label>
-              <Input
-                id="subjectId"
-                placeholder="например 3"
-                value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value)}
-                inputMode="numeric"
-              />
+              <Label>Предмет</Label>
+              <Select
+                value={subjectId || "none"}
+                onValueChange={handleSelectSubject}
+                disabled={loadingOpts}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выбрать предмет (опционально)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Нет —</SelectItem>
+                  {filteredSubjects.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Преподаватель */}
             <div className="space-y-2">
-              <Label htmlFor="teacherId">Преподаватель (ID, опц.)</Label>
-              <Input
-                id="teacherId"
-                placeholder="например 8"
-                value={teacherId}
-                onChange={(e) => setTeacherId(e.target.value)}
-                inputMode="numeric"
-              />
+              <Label>Преподаватель</Label>
+              <Select
+                value={teacherId || "none"}
+                onValueChange={handleSelectTeacher}
+                disabled={loadingOpts}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выбрать преподавателя (опционально)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Нет —</SelectItem>
+                  {filteredTeachers.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           {error && (
             <div
               className={cn(
-                "rounded-md border p-2 text-sm",
+                "mt-4 rounded-md border p-2 text-sm",
                 "border-destructive/50 text-destructive",
               )}
             >
@@ -184,7 +296,7 @@ export function LessonForm({
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="mt-4 flex justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
