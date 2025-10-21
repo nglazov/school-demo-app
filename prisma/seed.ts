@@ -25,6 +25,8 @@ const BASE_PERMS: PermTriple[] = [
   { type: "capability", action: "write", scope: "all" },
   { type: "building", action: "read", scope: "all" },
   { type: "building", action: "write", scope: "all" },
+  { type: "subject", action: "read", scope: "all" },
+  { type: "subject", action: "write", scope: "all" },
 ];
 
 async function upsertPermissions() {

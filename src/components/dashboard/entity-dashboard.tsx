@@ -15,6 +15,7 @@ const ENTITIES = [
   { key: "guardian", title: "Опекуны", path: "/guardians" },
   { key: "student", title: "Ученики", path: "/students" },
   { key: "capability", title: "Ограничения", path: "/capabilities" },
+  { key: "subject", title: "Предмет", path: "/subjects" },
 ];
 
 interface Role {
