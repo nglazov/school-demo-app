@@ -47,7 +47,6 @@ async function upsertPermissions() {
 async function ensureUser(username: string, plainPassword: string) {
   const rounds = Number(process.env.HASH_SALT ?? 12);
   const passwordHash = await bcrypt.hash(plainPassword, rounds);
-
   return prisma.user.upsert({
     where: { username },
     update: { passwordHash },
@@ -73,7 +72,6 @@ async function ensureBuilding(name: string, address?: string | null) {
     select: { id: true },
   });
   if (existing) return existing;
-
   return prisma.building.create({
     data: { name, address: address ?? null },
     select: { id: true },
@@ -105,8 +103,19 @@ async function ensureEduGroup(params: {
   const { key, name, academicYearId, gradeLevel, track } = params;
   return prisma.eduGroup.upsert({
     where: { key },
-    update: { name, academicYearId, gradeLevel, track },
-    create: { key, name, academicYearId, gradeLevel, track },
+    update: {
+      name,
+      academicYearId,
+      gradeLevel: gradeLevel ?? null,
+      track: track ?? null,
+    },
+    create: {
+      key,
+      name,
+      academicYearId,
+      gradeLevel: gradeLevel ?? null,
+      track: track ?? null,
+    },
     select: { id: true, key: true, academicYearId: true },
   });
 }
@@ -156,6 +165,60 @@ async function upsertRoomCapabilityInt(
   });
 }
 
+/** Subject уникален по code → upsert */
+async function ensureSubject(code: string, name: string) {
+  return prisma.subject.upsert({
+    where: { code },
+    update: { name },
+    create: { code, name },
+    select: { id: true, code: true, name: true },
+  });
+}
+
+/** Создать Person (если нет) и Staff для конкретного пользователя-учителя. */
+async function ensureStaffForUser(
+  userId: number,
+  opts?: { firstName?: string; lastName?: string; email?: string | null },
+) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, personId: true },
+  });
+  if (!user) throw new Error("User not found");
+
+  let personId = user.personId;
+  if (!personId) {
+    const person = await prisma.person.create({
+      data: {
+        firstName: opts?.firstName ?? "Teacher",
+        lastName: opts?.lastName ?? "User",
+        email: opts?.email ?? null,
+      },
+      select: { id: true },
+    });
+    personId = person.id;
+    await prisma.user.update({ where: { id: userId }, data: { personId } });
+  }
+
+  const staff = await prisma.staff.upsert({
+    where: { personId: personId },
+    update: {},
+    create: { personId: personId, type: "TEACHER" },
+    select: { id: true },
+  });
+
+  return staff;
+}
+
+/** Привязка «преподаватель ↔ предмет» (идемпотентно) */
+async function ensureTeacherCanTeach(staffId: number, subjectId: number) {
+  await prisma.staffSubject.upsert({
+    where: { staffId_subjectId: { staffId, subjectId } },
+    update: {},
+    create: { staffId, subjectId },
+  });
+}
+
 /** UserGroup (роль) — нет уникальности name → findFirst + create. */
 async function ensureRoleGroup(name: string) {
   const existing = await prisma.userGroup.findFirst({
@@ -163,7 +226,6 @@ async function ensureRoleGroup(name: string) {
     select: { id: true, name: true },
   });
   if (existing) return existing;
-
   return prisma.userGroup.create({
     data: { name, joinedAt: new Date() },
     select: { id: true, name: true },
@@ -178,6 +240,7 @@ async function addUserToGroup(userId: number, userGroupId: number) {
   });
 }
 
+/** Права на группу */
 async function linkPermissionsToGroup(userGroupId: number, permIds: number[]) {
   const tx = permIds.map((pid) =>
     prisma.userGroupPermission.upsert({
@@ -191,7 +254,7 @@ async function linkPermissionsToGroup(userGroupId: number, permIds: number[]) {
 
 /** Создание Person+Student с якорем по externalId (идемпотентно). */
 async function ensureStudent(params: {
-  externalId: string; // используем как «уникальный» сид-идентификатор
+  externalId: string;
   firstName: string;
   lastName: string;
   middleName?: string | null;
@@ -219,10 +282,7 @@ async function ensureStudent(params: {
     });
 
     return tx.student.create({
-      data: {
-        personId: person.id,
-        externalId: params.externalId,
-      },
+      data: { personId: person.id, externalId: params.externalId },
       select: { id: true },
     });
   });
@@ -241,7 +301,6 @@ async function ensureGroupMembership(
     select: { id: true },
   });
   if (exists) return exists;
-
   return prisma.groupMembership.create({
     data: { studentId, groupId, since },
     select: { id: true },
@@ -250,6 +309,7 @@ async function ensureGroupMembership(
 
 async function main() {
   console.log("🌱 Seeding permissions, users, groups...");
+
   // 1) Права
   const perms = await upsertPermissions();
   const byType = (t: string) => perms.filter((p) => p.type === t);
@@ -264,9 +324,13 @@ async function main() {
   // 2) Пользователи
   const adminPwd = process.env.ADMIN_PASSWORD ?? "admin";
   const teacherPwd = process.env.TEACHER_PASSWORD ?? "teacher";
+  const teacher2Pwd = process.env.TEACHER2_PASSWORD ?? "teacher2";
+  const teacher3Pwd = process.env.TEACHER3_PASSWORD ?? "teacher3";
 
   const admin = await ensureUser("admin", adminPwd);
   const teacher = await ensureUser("teacher", teacherPwd);
+  const teacher2 = await ensureUser("teacher2", teacher2Pwd);
+  const teacher3 = await ensureUser("teacher3", teacher3Pwd);
 
   // 3) Ролевые группы
   const adminsGroup = await ensureRoleGroup("Admins");
@@ -275,6 +339,8 @@ async function main() {
   // 4) Членство пользователей
   await addUserToGroup(admin.id, adminsGroup.id);
   await addUserToGroup(teacher.id, teachersGroup.id);
+  await addUserToGroup(teacher2.id, teachersGroup.id);
+  await addUserToGroup(teacher3.id, teachersGroup.id);
 
   // 5) Права на группы
   await linkPermissionsToGroup(
@@ -321,7 +387,6 @@ async function main() {
 
   // === DEMO DATA (academic year + groups + students) ===
   console.log("📅 Seeding academic year 25/26 and edu groups...");
-
   const year = await ensureAcademicYear(
     "25/26",
     new Date("2025-09-01"),
@@ -350,7 +415,7 @@ async function main() {
     track: "A",
   });
 
-  // Наборы учеников для примера (externalId — якорь для идемпотентности)
+  // Студенты (externalId — якорь для идемпотентности)
   const students7a = [
     { ext: "7A-001", last: "Иванов", first: "Артём" },
     { ext: "7A-002", last: "Петров", first: "Максим" },
@@ -377,7 +442,6 @@ async function main() {
     { ext: "8A-006", last: "Ершова", first: "Милана" },
   ];
 
-  // Создаём студентов и включаем их в группы с начала учебного года
   const since = new Date("2025-09-01");
 
   const createPack = async (
@@ -397,6 +461,38 @@ async function main() {
   await createPack(students7a, g7a.id);
   await createPack(students7b, g7b.id);
   await createPack(students8a, g8a.id);
+
+  // === SUBJECTS & TEACHER CAPABILITIES ===
+  console.log("📚 Seeding subjects and teacher capabilities...");
+  const math = await ensureSubject("math", "Математика");
+  const cs = await ensureSubject("cs", "Информатика");
+  const phys = await ensureSubject("phys", "Физика");
+
+  // Staff для трёх пользователей-учителей
+  const teacherStaff = await ensureStaffForUser(teacher.id, {
+    firstName: "Иван",
+    lastName: "Петров",
+    email: "teacher@example.com",
+  });
+  const teacher2Staff = await ensureStaffForUser(teacher2.id, {
+    firstName: "Мария",
+    lastName: "Орлова",
+    email: "teacher2@example.com",
+  });
+  const teacher3Staff = await ensureStaffForUser(teacher3.id, {
+    firstName: "Сергей",
+    lastName: "Кузьмин",
+    email: "teacher3@example.com",
+  });
+
+  // Кто что ведёт
+  await ensureTeacherCanTeach(teacherStaff.id, math.id);
+  await ensureTeacherCanTeach(teacherStaff.id, cs.id);
+
+  await ensureTeacherCanTeach(teacher2Staff.id, phys.id);
+  await ensureTeacherCanTeach(teacher2Staff.id, math.id);
+
+  await ensureTeacherCanTeach(teacher3Staff.id, cs.id);
 
   console.log("✅ Seed complete.");
 }

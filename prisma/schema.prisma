@@ -263,8 +263,9 @@ model Subject {
   name      String
   createdAt DateTime @default(now())
 
-  rules   SubjectCapabilityRule[]
-  lessons Lesson[]
+  rules        SubjectCapabilityRule[]
+  lessons      Lesson[]
+  StaffSubject StaffSubject[]
 }
 
 enum CapabilityOperator {
@@ -314,6 +315,7 @@ model Staff {
   availabilities StaffAvailability[]
   exceptions     StaffException[]
   lessons        Lesson[]            @relation("LessonTeacher")
+  StaffSubject   StaffSubject[]
 }
 
 model StaffAvailability {
@@ -419,4 +421,15 @@ model Lesson {
   @@index([groupId, date, startsAtMin])
   @@index([status])
   @@index([batchId])
+}
+
+model StaffSubject {
+  staffId   Int
+  subjectId Int
+
+  staff   Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([staffId, subjectId])
+  @@index([subjectId])
 }
