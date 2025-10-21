@@ -1,7 +1,7 @@
 // prisma/seed.ts
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "../src/generated/prisma";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -29,6 +29,7 @@ async function upsertPermissions() {
   const tx = BASE_PERMS.map((p) =>
     prisma.permission.upsert({
       where: {
+        // composite unique from @@unique([type, action, scope])
         type_action_scope: { type: p.type, action: p.action, scope: p.scope },
       },
       update: {},
@@ -51,17 +52,28 @@ async function ensureUser(username: string, plainPassword: string) {
   });
 }
 
-// С учётом autoincrement на UserGroup.id
-async function ensureUserGroupForUser(userId: number) {
+/**
+ * Т.к. в схеме нет unique на name у UserGroup, используем findFirst+create.
+ */
+async function ensureRoleGroup(name: string) {
   const existing = await prisma.userGroup.findFirst({
-    where: { userId },
-    select: { id: true },
+    where: { name },
+    select: { id: true, name: true },
   });
   if (existing) return existing;
 
   return prisma.userGroup.create({
-    data: { userId, joinedAt: new Date() },
-    select: { id: true },
+    data: { name, joinedAt: new Date() },
+    select: { id: true, name: true },
+  });
+}
+
+async function addUserToGroup(userId: number, userGroupId: number) {
+  // @@id([userId, userGroupId]) позволяет upsert по составному ключу
+  await prisma.userUserGroup.upsert({
+    where: { userId_userGroupId: { userId, userGroupId } },
+    update: {},
+    create: { userId, userGroupId },
   });
 }
 
@@ -77,32 +89,42 @@ async function linkPermissionsToGroup(userGroupId: number, permIds: number[]) {
 }
 
 async function main() {
-  console.log("🌱 Seeding permissions & user groups...");
+  console.log("🌱 Seeding permissions, users and role groups...");
 
+  // 1) Права
   const perms = await upsertPermissions();
   const byType = (t: string) => perms.filter((p) => p.type === t);
-  const pick = (t: string, action?: string, scope?: string) =>
+  const pick = (t: string, action?: "read" | "write", scope?: "own" | "all") =>
     perms.filter(
       (p) =>
         p.type === t &&
-        (!action || p.action === action) &&
-        (!scope || p.scope === scope),
+        (action ? p.action === action : true) &&
+        (scope ? p.scope === scope : true),
     );
 
+  // 2) Пользователи
   const adminPwd = process.env.ADMIN_PASSWORD ?? "admin";
   const teacherPwd = process.env.TEACHER_PASSWORD ?? "teacher";
 
   const admin = await ensureUser("admin", adminPwd);
   const teacher = await ensureUser("teacher", teacherPwd);
 
-  const adminGroup = await ensureUserGroupForUser(admin.id);
-  const teacherGroup = await ensureUserGroupForUser(teacher.id);
+  // 3) Ролевые группы
+  const adminsGroup = await ensureRoleGroup("Admins");
+  const teachersGroup = await ensureRoleGroup("Teachers");
 
+  // 4) Вступление пользователей в группы (через UserUserGroup)
+  await addUserToGroup(admin.id, adminsGroup.id);
+  await addUserToGroup(teacher.id, teachersGroup.id);
+
+  // 5) Права на группы
+  // Админы — все права
   await linkPermissionsToGroup(
-    adminGroup.id,
+    adminsGroup.id,
     perms.map((p) => p.id),
   );
 
+  // Учителя — ограниченный набор
   const teacherPerms = [
     ...byType("student"),
     ...byType("guardian"),
@@ -112,7 +134,7 @@ async function main() {
     ...pick("family", "read", "own"),
   ];
   await linkPermissionsToGroup(
-    teacherGroup.id,
+    teachersGroup.id,
     teacherPerms.map((p) => p.id),
   );
 

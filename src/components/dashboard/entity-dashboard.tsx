@@ -7,12 +7,13 @@ import { EntityCard } from "./entity-card";
 
 // имитация зарегистрированных сущностей и требуемых ролей
 const ENTITIES = [
-  { name: "User", view: ["admin"], edit: ["admin"] },
-  { name: "Role", view: ["admin"], edit: ["admin"] },
-  { name: "Lesson", view: ["admin", "teacher"], edit: ["admin"] },
-  { name: "Room", view: ["admin", "teacher"], edit: ["admin"] },
-  { name: "Guardian", view: ["admin", "teacher"], edit: ["admin"] },
-  { name: "Student", view: ["admin", "teacher"], edit: ["admin", "teacher"] },
+  { key: "user", title: "Пользователи", path: "/users" },
+  { key: "role", title: "Роли", path: "/roles" },
+  { key: "lesson", title: "Уроки", path: "/lessons" },
+  { key: "room", title: "Комнаты", path: "/rooms" },
+  { key: "guardian", title: "Здания", path: "/guardians" },
+  { key: "student", title: "Ученики", path: "/students" },
+  { key: "capability", title: "Ограничения", path: "/capabilities" },
 ];
 
 interface Role {
@@ -25,13 +26,12 @@ export function EntityDashboard({ roles = [] }: { roles: Role[] }) {
   const [filter, setFilter] = useState("");
 
   console.log(roles);
+  console.log(ENTITIES);
 
   const available = useMemo(() => {
     return ENTITIES.filter((e) =>
-      e.view.some((r) =>
-        roles.some(({ type, action }) => type === e.name.toLowerCase()),
-      ),
-    ).filter((e) => e.name.toLowerCase().includes(filter.toLowerCase()));
+      roles.some(({ type, action }) => type === e.key),
+    );
   }, [filter, roles]);
 
   return (
@@ -51,7 +51,7 @@ export function EntityDashboard({ roles = [] }: { roles: Role[] }) {
 
         <div className="grid gap-3 sm:grid-cols-2">
           {available.map((e) => (
-            <EntityCard key={e.name} entity={e} roles={roles} />
+            <EntityCard key={e.key} entity={e} roles={roles} />
           ))}
         </div>
       </CardContent>

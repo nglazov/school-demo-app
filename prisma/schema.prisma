@@ -1,7 +1,6 @@
 // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -22,9 +21,7 @@ model User {
   personId Int?    @unique
   person   Person? @relation(fields: [personId], references: [id])
 
-  groups               UserGroup[]
-  lessonBatchesCreated LessonBatch[] @relation("LessonBatchCreatedBy")
-  lessonEventsCreated  LessonEvent[] @relation("LessonEventCreatedBy")
+  userGroup UserUserGroup[]
 }
 
 model Person {
@@ -68,15 +65,25 @@ model UserGroupPermission {
 }
 
 model UserGroup {
-  userId   Int
   id       Int      @default(autoincrement())
   joinedAt DateTime @default(now())
+  name     String
 
   permissions UserGroupPermission[]
-  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        UserUserGroup[]
 
   @@id([id])
   @@index([id])
+}
+
+model UserUserGroup {
+  userId      Int
+  userGroupId Int
+
+  userGroup UserGroup @relation(fields: [userGroupId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, userGroupId])
 }
 
 //////////////////////
@@ -356,7 +363,6 @@ model LessonBatch {
   createdAt DateTime @default(now())
   createdBy Int?
 
-  creator User?         @relation("LessonBatchCreatedBy", fields: [createdBy], references: [id])
   events  LessonEvent[]
   lessons Lesson[]
 
@@ -380,8 +386,7 @@ model LessonEvent {
   createdBy Int?
   message   String?
 
-  batch   LessonBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  creator User?       @relation("LessonEventCreatedBy", fields: [createdBy], references: [id])
+  batch LessonBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@index([batchId])
   @@index([createdAt])

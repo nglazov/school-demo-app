@@ -8,11 +8,12 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 type Entity = {
-  name: string;
-  view: string[];
-  edit: string[];
+  key: string;
+  title: string;
+  path: string;
 };
 
 interface Role {
@@ -21,44 +22,18 @@ interface Role {
   scope: string;
 }
 
-export function EntityCard({
-  entity,
-  roles,
-}: {
-  entity: Entity;
-  roles: Role[];
-}) {
-  const canEdit = true;
+export function EntityCard({ entity }: { entity: Entity; roles: Role[] }) {
   const canView = true;
 
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>{entity.name}</CardTitle>
-        <CardDescription>
-          {canEdit
-            ? "Можно просматривать и редактировать"
-            : canView
-              ? "Только просмотр"
-              : "Нет доступа"}
-        </CardDescription>
+        <CardTitle>{entity.title}</CardTitle>
       </CardHeader>
       <CardFooter className="flex gap-2">
         {canView && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => alert(`Открыть ${entity.name}`)}
-          >
-            Открыть
-          </Button>
-        )}
-        {canEdit && (
-          <Button
-            size="sm"
-            onClick={() => alert(`Редактировать ${entity.name}`)}
-          >
-            Редактировать
+          <Button asChild variant="outline" size="sm">
+            <Link href={entity.path}>Открыть</Link>
           </Button>
         )}
       </CardFooter>

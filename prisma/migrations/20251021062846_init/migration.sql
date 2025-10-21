@@ -26,6 +26,8 @@ CREATE TABLE "User" (
     "passwordHash" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "personId" INTEGER,
+    "userUserGroupUserId" INTEGER NOT NULL,
+    "userUserGroupUserGroupId" INTEGER NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -64,11 +66,21 @@ CREATE TABLE "UserGroupPermission" (
 
 -- CreateTable
 CREATE TABLE "UserGroup" (
-    "userId" INTEGER NOT NULL,
-    "id" INTEGER NOT NULL,
+    "id" SERIAL NOT NULL,
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "name" TEXT NOT NULL,
+    "userId" INTEGER,
 
     CONSTRAINT "UserGroup_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserUserGroup" (
+    "userId" INTEGER NOT NULL,
+    "userGroupId" INTEGER NOT NULL,
+    "permissionId" INTEGER,
+
+    CONSTRAINT "UserUserGroup_pkey" PRIMARY KEY ("userId","userGroupId")
 );
 
 -- CreateTable
@@ -179,17 +191,6 @@ CREATE TABLE "Capability" (
 );
 
 -- CreateTable
-CREATE TABLE "CapabilityOption" (
-    "id" SERIAL NOT NULL,
-    "capabilityId" INTEGER NOT NULL,
-    "key" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "sort" INTEGER NOT NULL DEFAULT 0,
-
-    CONSTRAINT "CapabilityOption_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "RoomCapability" (
     "roomId" INTEGER NOT NULL,
     "capabilityId" INTEGER NOT NULL,
@@ -223,14 +224,6 @@ CREATE TABLE "SubjectCapabilityRule" (
     "optionId" INTEGER,
 
     CONSTRAINT "SubjectCapabilityRule_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "SubjectCapabilityRuleOption" (
-    "ruleId" INTEGER NOT NULL,
-    "optionId" INTEGER NOT NULL,
-
-    CONSTRAINT "SubjectCapabilityRuleOption_pkey" PRIMARY KEY ("ruleId","optionId")
 );
 
 -- CreateTable
@@ -363,12 +356,6 @@ CREATE UNIQUE INDEX "Room_buildingId_name_key" ON "Room"("buildingId", "name");
 CREATE UNIQUE INDEX "Capability_key_key" ON "Capability"("key");
 
 -- CreateIndex
-CREATE INDEX "CapabilityOption_capabilityId_idx" ON "CapabilityOption"("capabilityId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "CapabilityOption_capabilityId_key_key" ON "CapabilityOption"("capabilityId", "key");
-
--- CreateIndex
 CREATE INDEX "RoomCapability_capabilityId_idx" ON "RoomCapability"("capabilityId");
 
 -- CreateIndex
@@ -438,7 +425,16 @@ ALTER TABLE "UserGroupPermission" ADD CONSTRAINT "UserGroupPermission_userGroupI
 ALTER TABLE "UserGroupPermission" ADD CONSTRAINT "UserGroupPermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "UserGroup" ADD CONSTRAINT "UserGroup_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UserGroup" ADD CONSTRAINT "UserGroup_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserUserGroup" ADD CONSTRAINT "UserUserGroup_userGroupId_fkey" FOREIGN KEY ("userGroupId") REFERENCES "UserGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserUserGroup" ADD CONSTRAINT "UserUserGroup_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserUserGroup" ADD CONSTRAINT "UserUserGroup_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Student" ADD CONSTRAINT "Student_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -468,31 +464,16 @@ ALTER TABLE "GroupMembership" ADD CONSTRAINT "GroupMembership_groupId_fkey" FORE
 ALTER TABLE "Room" ADD CONSTRAINT "Room_buildingId_fkey" FOREIGN KEY ("buildingId") REFERENCES "Building"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CapabilityOption" ADD CONSTRAINT "CapabilityOption_capabilityId_fkey" FOREIGN KEY ("capabilityId") REFERENCES "Capability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "RoomCapability" ADD CONSTRAINT "RoomCapability_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RoomCapability" ADD CONSTRAINT "RoomCapability_capabilityId_fkey" FOREIGN KEY ("capabilityId") REFERENCES "Capability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RoomCapability" ADD CONSTRAINT "RoomCapability_optionId_fkey" FOREIGN KEY ("optionId") REFERENCES "CapabilityOption"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "SubjectCapabilityRule" ADD CONSTRAINT "SubjectCapabilityRule_subjectId_fkey" FOREIGN KEY ("subjectId") REFERENCES "Subject"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "SubjectCapabilityRule" ADD CONSTRAINT "SubjectCapabilityRule_capabilityId_fkey" FOREIGN KEY ("capabilityId") REFERENCES "Capability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "SubjectCapabilityRule" ADD CONSTRAINT "SubjectCapabilityRule_optionId_fkey" FOREIGN KEY ("optionId") REFERENCES "CapabilityOption"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "SubjectCapabilityRuleOption" ADD CONSTRAINT "SubjectCapabilityRuleOption_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "SubjectCapabilityRule"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "SubjectCapabilityRuleOption" ADD CONSTRAINT "SubjectCapabilityRuleOption_optionId_fkey" FOREIGN KEY ("optionId") REFERENCES "CapabilityOption"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Staff" ADD CONSTRAINT "Staff_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

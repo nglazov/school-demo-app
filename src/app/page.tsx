@@ -5,14 +5,11 @@ import { EntityDashboard } from "@/components/dashboard/entity-dashboard";
 
 // вспомогательная функция
 async function getUserRoles(userId: number) {
-  // пример, подстрой под твою схему RBAC
-  const roles = await prisma.permission.findMany({
+  return await prisma.permission.findMany({
     where: {
-      userGroups: { some: { userGroup: { userId } } },
+      userGroups: { some: { userGroup: { user: { some: { userId } } } } },
     },
   });
-
-  return roles;
 }
 
 export default async function DashboardPage() {
@@ -20,6 +17,8 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   const roles = await getUserRoles(session.sub);
+
+  console.log("roles", roles);
 
   return (
     <main className="p-6">
