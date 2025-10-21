@@ -17,6 +17,7 @@ const ENTITIES = [
   { key: "group", title: "Группы", path: "/groups" },
   { key: "capability", title: "Ограничения", path: "/capabilities" },
   { key: "subject", title: "Предмет", path: "/subjects" },
+  { key: "staff", title: "Сотрудники", path: "/staff" },
 ];
 
 interface Role {
@@ -28,14 +29,11 @@ interface Role {
 export function EntityDashboard({ roles = [] }: { roles: Role[] }) {
   const [filter, setFilter] = useState("");
 
-  console.log(roles);
-  console.log(ENTITIES);
-
   const available = useMemo(() => {
     return ENTITIES.filter((e) =>
       roles.some(({ type, action }) => type === e.key),
     );
-  }, [filter, roles]);
+  }, [roles]);
 
   return (
     <Card className="max-w-3xl mx-auto">
