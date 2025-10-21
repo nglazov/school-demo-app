@@ -359,7 +359,7 @@ enum LessonStatus {
 
 model LessonBatch {
   id        Int      @id @default(autoincrement())
-  key       String   @unique
+  key       String   @unique @default(uuid())
   title     String?
   notes     String?
   createdAt DateTime @default(now())
@@ -401,18 +401,18 @@ model Lesson {
   startsAtMin Int
   endsAtMin   Int
 
-  groupId   Int
-  roomId    Int
-  subjectId Int
-  teacherId Int
+  groupId   Int?
+  roomId    Int?
+  subjectId Int?
+  teacherId Int?
   batchId   Int?
 
   status LessonStatus @default(DRAFT)
 
-  group   EduGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  room    Room         @relation(fields: [roomId], references: [id])
-  subject Subject      @relation(fields: [subjectId], references: [id])
-  teacher Staff        @relation("LessonTeacher", fields: [teacherId], references: [id])
+  group   EduGroup?    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  room    Room?        @relation(fields: [roomId], references: [id])
+  subject Subject?     @relation(fields: [subjectId], references: [id])
+  teacher Staff?       @relation("LessonTeacher", fields: [teacherId], references: [id])
   batch   LessonBatch? @relation(fields: [batchId], references: [id])
 
   @@index([date, startsAtMin, endsAtMin])
