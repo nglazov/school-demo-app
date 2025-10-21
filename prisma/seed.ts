@@ -1,7 +1,7 @@
 // prisma/seed.ts
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../src/generated/prisma";
 
 const prisma = new PrismaClient();
 
@@ -21,6 +21,8 @@ const BASE_PERMS: PermTriple[] = [
   { type: "room", action: "read", scope: "all" },
   { type: "subject", action: "read", scope: "all" },
   { type: "family", action: "read", scope: "own" },
+  { type: "capability", action: "read", scope: "all" },
+  { type: "capability", action: "write", scope: "all" },
 ];
 
 async function upsertPermissions() {

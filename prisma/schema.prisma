@@ -226,25 +226,8 @@ model Capability {
   valueType CapabilityValueType
   createdAt DateTime            @default(now())
 
-  options    CapabilityOption[]
   roomValues RoomCapability[]
   subjRules  SubjectCapabilityRule[]
-}
-
-model CapabilityOption {
-  id           Int    @id @default(autoincrement())
-  capabilityId Int
-  key          String
-  name         String
-  sort         Int    @default(0)
-
-  capability   Capability                    @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
-  roomCaps     RoomCapability[]
-  subjRules    SubjectCapabilityRule[]
-  subjRuleOpts SubjectCapabilityRuleOption[]
-
-  @@unique([capabilityId, key])
-  @@index([capabilityId])
 }
 
 model RoomCapability {
@@ -258,7 +241,6 @@ model RoomCapability {
   intValue  Int?
   textValue String?
   optionId  Int?
-  option    CapabilityOption? @relation(fields: [optionId], references: [id])
 
   @@id([roomId, capabilityId])
   @@index([capabilityId])
@@ -300,22 +282,9 @@ model SubjectCapabilityRule {
   intValue  Int?
   textValue String?
   optionId  Int?
-  option    CapabilityOption? @relation(fields: [optionId], references: [id])
-
-  optionsIn SubjectCapabilityRuleOption[]
 
   @@unique([subjectId, capabilityId, operator])
   @@index([capabilityId])
-}
-
-model SubjectCapabilityRuleOption {
-  ruleId   Int
-  optionId Int
-
-  rule   SubjectCapabilityRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  option CapabilityOption      @relation(fields: [optionId], references: [id], onDelete: Cascade)
-
-  @@id([ruleId, optionId])
 }
 
 //////////////////////
